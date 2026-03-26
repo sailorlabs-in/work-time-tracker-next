@@ -23,6 +23,7 @@ import {
   RiErrorWarningLine,
   RiDeleteBinLine,
   RiRefreshLine,
+  RiAlertLine,
 } from "@remixicon/react";
 
 interface UserProfile {
@@ -276,6 +277,113 @@ function LatePunchInModal({ onClose, onSubmit }: LatePunchInModalProps) {
   );
 }
 
+// ─── Modal: Terminate Previous Timer ──────────────────────────
+interface TerminateTimerModalProps {
+  startTime: number;
+  onClose: () => void;
+  onSubmit: (endTimeMs: number) => Promise<{ success: boolean; error?: string }>;
+}
+
+function TerminateTimerModal({
+  startTime,
+  onClose,
+  onSubmit,
+}: TerminateTimerModalProps) {
+  // Default to 11:59 PM of the start date
+  const startDate = new Date(startTime);
+  const defaultEnd = new Date(startDate);
+  defaultEnd.setHours(23, 59, 0, 0);
+
+  const formatDatetimeLocal = (d: Date) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const hh = String(d.getHours()).padStart(2, "0");
+    const min = String(d.getMinutes()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+  };
+
+  const [endTime, setEndTime] = useState(formatDatetimeLocal(defaultEnd));
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    const endMs = new Date(endTime).getTime();
+    if (endMs <= startTime) {
+      setError("End time must be after the session start time.");
+      setLoading(false);
+      return;
+    }
+    if (endMs > Date.now()) {
+      setError("End time cannot be in the future.");
+      setLoading(false);
+      return;
+    }
+
+    const result = await onSubmit(endMs);
+    setLoading(false);
+    if (!result.success) {
+      setError(result.error || "Failed to terminate timer.");
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header-centered">
+          <span className="modal-icon">
+            <RiAlertLine size={24} />
+          </span>
+          <h2>Terminate Previous Timer</h2>
+          <p className="modal-subtitle">
+            Your timer from{" "}
+            {startDate.toLocaleDateString([], {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            })}{" "}
+            is still running. When did you actually stop working?
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="modal-form">
+          {error && <div className="auth-error">{error}</div>}
+
+          <div className="form-group">
+            <label htmlFor="terminateEndTime">Actual Stop Time</label>
+            <input
+              id="terminateEndTime"
+              type="datetime-local"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              max={formatDatetimeLocal(new Date())}
+              required
+            />
+          </div>
+
+          <div className="modal-footer">
+            <button type="button" className="btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn-danger"
+              disabled={loading}
+            >
+              <RiCheckLine size={18} />
+              {loading ? "Terminating..." : "Terminate & Reset"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Session Panel (right column) ────────────────────────────
 function SessionPanel({
   logs,
@@ -362,11 +470,13 @@ export default function DashboardClient({
     isOvertime,
     lastSynced,
     isLoaded,
+    isStaleTimer,
     startDay,
     punchToggle,
     addHistoricalBreak,
     resetDay,
     clearToday,
+    terminatePreviousTimer,
     formatTime: ft,
   } = useWorkTimer(initialTimerState);
 
@@ -391,6 +501,7 @@ export default function DashboardClient({
   const [showBreakModal, setShowBreakModal] = useState(false);
   const [showLatePunchInModal, setShowLatePunchInModal] = useState(false);
   const [showLatePunchOutModal, setShowLatePunchOutModal] = useState(false);
+  const [showTerminateModal, setShowTerminateModal] = useState(false);
 
   useEffect(() => {
     const updateTime = () => {
@@ -511,8 +622,44 @@ export default function DashboardClient({
           onSubmit={handleLatePunchIn}
         />
       )}
+      {showTerminateModal && state.startTime && (
+        <TerminateTimerModal
+          startTime={state.startTime}
+          onClose={() => setShowTerminateModal(false)}
+          onSubmit={async (endTimeMs) => {
+            const result = await terminatePreviousTimer(endTimeMs);
+            if (result.success) setShowTerminateModal(false);
+            return result;
+          }}
+        />
+      )}
 
       <div className={`main-content${state.isActive ? " dashboard-page" : ""}`}>
+        {/* Stale Timer Banner */}
+        {isStaleTimer && state.startTime && (
+          <div className="stale-timer-banner animate-in">
+            <div className="stale-timer-content">
+              <RiAlertLine size={22} />
+              <div className="stale-timer-text">
+                <strong>Timer still running from{" "}
+                  {new Date(state.startTime).toLocaleDateString([], {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </strong>
+                <span>You forgot to stop your timer. Terminate it to start a new day.</span>
+              </div>
+            </div>
+            <button
+              className="btn-terminate"
+              onClick={() => setShowTerminateModal(true)}
+            >
+              <RiAlertLine size={16} /> Terminate Previous Timer
+            </button>
+          </div>
+        )}
+
         {!state.isActive ? (
           /* ─── Setup Form ─── */
           <div className="glass-card setup-card animate-in">
