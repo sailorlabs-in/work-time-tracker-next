@@ -10,13 +10,23 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const timerState = await getTimerState(session.user.id);
-  const userProfile = await getUserProfile(session.user.id);
+  // Graceful SSR degradation: if DB/server is unreachable, return null
+  // so the client-side localStorage fallback in useWorkTimer kicks in.
+  let timerState = null;
+  let userProfile = null;
+  try {
+    [timerState, userProfile] = await Promise.all([
+      getTimerState(session.user.id),
+      getUserProfile(session.user.id),
+    ]);
+  } catch {
+    // Server unreachable — client will hydrate from localStorage
+  }
 
   return (
-    <DashboardClient 
-      initialTimerState={timerState} 
-      userProfile={userProfile} 
+    <DashboardClient
+      initialTimerState={timerState}
+      userProfile={userProfile}
     />
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import * as offlineQueue from "@/lib/offlineQueue";
 
 const MS_PER_HOUR = 3600000;
 const MS_PER_MINUTE = 60000;
@@ -55,24 +56,28 @@ export function formatShortTime(ms: number): string {
   return `${h}h ${m}m`;
 }
 
+// ── Offline-aware backend helpers ─────────────────────────────────────────────
+
 async function sendLogToBackend(
   type: "punch-in" | "punch-out",
   time: string,
   totalHours?: string,
 ) {
+  const body = {
+    type,
+    time,
+    date: new Date().toISOString().split("T")[0],
+    totalHours,
+  };
   try {
     await fetch("/api/worklog", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type,
-        time,
-        date: new Date().toISOString().split("T")[0],
-        totalHours,
-      }),
+      body: JSON.stringify(body),
     });
-  } catch (err) {
-    console.error("Failed to log to backend:", err);
+  } catch {
+    // Offline — queue for later
+    offlineQueue.enqueue("/api/worklog", "POST", body);
   }
 }
 
@@ -83,8 +88,9 @@ async function syncTimerStateToBackend(state: TimerState) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(state),
     });
-  } catch (err) {
-    console.error("Failed to sync timer state:", err);
+  } catch {
+    // Offline — queue (deduped: only keeps the latest timer-sync)
+    offlineQueue.enqueue("/api/timer-sync", "POST", state as unknown as object);
   }
 }
 
@@ -108,8 +114,8 @@ async function loadTimerStateFromBackend(): Promise<TimerState | null> {
         };
       }
     }
-  } catch (err) {
-    console.error("Failed to load timer state from backend:", err);
+  } catch {
+    console.error("Failed to load timer state from backend (offline?)");
   }
   return null;
 }
@@ -117,10 +123,12 @@ async function loadTimerStateFromBackend(): Promise<TimerState | null> {
 async function clearTimerStateFromBackend() {
   try {
     await fetch("/api/timer-sync", { method: "DELETE" });
-  } catch (err) {
-    console.error("Failed to clear timer state:", err);
+  } catch {
+    offlineQueue.enqueue("/api/timer-sync", "DELETE");
   }
 }
+
+// ── Hook ──────────────────────────────────────────────────────────────────────
 
 export function useWorkTimer(initialState: TimerState | null = null) {
   const [state, setState] = useState<TimerState>(initialState || defaultState);
@@ -144,7 +152,7 @@ export function useWorkTimer(initialState: TimerState | null = null) {
           try {
             setState(JSON.parse(saved));
           } catch {
-            // Invalid state
+            // Invalid state — leave as default
           }
         }
       }
@@ -153,6 +161,15 @@ export function useWorkTimer(initialState: TimerState | null = null) {
     loadState();
   }, [initialState]);
 
+  // Flush any pending offline queue on mount (handles close-while-offline scenario)
+  useEffect(() => {
+    if (typeof navigator !== "undefined" && navigator.onLine) {
+      offlineQueue.flush().catch(() => {
+        // Silently ignore — will retry on next reconnect
+      });
+    }
+  }, []);
+
   // Save state to localStorage on change
   useEffect(() => {
     if (state.isActive) {
@@ -160,14 +177,13 @@ export function useWorkTimer(initialState: TimerState | null = null) {
     }
   }, [state]);
 
-  // Timer interval
+  // Timer interval (tick every second + overtime notification)
   useEffect(() => {
     if (state.isActive) {
       intervalRef.current = setInterval(() => {
         const nowMs = Date.now();
         setCurrentTime(nowMs);
 
-        // Notification check
         const currentWork =
           state.status === "working" && state.lastStatusChange
             ? nowMs - state.lastStatusChange
@@ -181,11 +197,8 @@ export function useWorkTimer(initialState: TimerState | null = null) {
           totalWorkNow >= state.targetWorkMs
         ) {
           setState((prev) => ({ ...prev, hasFiredOtNotification: true }));
-
-          fetch("/api/user/notify-overtime", { method: "POST" })
-            .catch((err) =>
-              console.error("Error triggering overtime notification:", err),
-            );
+          // Best-effort: ignore failure (we don't queue notifications)
+          fetch("/api/user/notify-overtime", { method: "POST" }).catch(() => {});
         }
       }, 1000);
     }
@@ -204,7 +217,6 @@ export function useWorkTimer(initialState: TimerState | null = null) {
   // Auto-sync every 5 minutes to PostgreSQL
   useEffect(() => {
     if (state.isActive) {
-      // Sync immediately when starting
       syncTimerStateToBackend(state);
       setLastSynced(new Date());
 
@@ -217,13 +229,8 @@ export function useWorkTimer(initialState: TimerState | null = null) {
     return () => {
       if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
     };
-  }, [
-    state.isActive,
-    state.status,
-    state.accumulatedWorkMs,
-    state.accumulatedBreakMs,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ]);
+  }, [state.isActive, state.status, state.accumulatedWorkMs, state.accumulatedBreakMs]);
 
   // Computed values
   const now = currentTime;
@@ -348,7 +355,6 @@ export function useWorkTimer(initialState: TimerState | null = null) {
         return prev;
       }
 
-      // Sync immediately on punch toggle
       syncTimerStateToBackend(newState);
       setLastSynced(new Date());
       return newState;
@@ -359,44 +365,36 @@ export function useWorkTimer(initialState: TimerState | null = null) {
 
   const resetDay = useCallback(() => {
     localStorage.removeItem("wtt_state_next");
+    offlineQueue.clearQueue(); // discard any pending offline actions for old session
     setState(defaultState);
     clearTimerStateFromBackend();
   }, []);
 
   const clearToday = useCallback(async () => {
+    // Always reset local state immediately (offline-safe)
+    localStorage.removeItem("wtt_state_next");
+    setState(defaultState);
+
     try {
       const res = await fetch("/api/worklog/today", { method: "DELETE" });
       if (res.ok) {
-        localStorage.removeItem("wtt_state_next");
-        setState(defaultState);
         return { success: true };
       }
-      const data = await res.json();
+      // Server responded but with an error
+      const data = await res.json().catch(() => ({}));
+      // Even on error, local state is already cleared — queue the DELETE
+      offlineQueue.enqueue("/api/worklog/today", "DELETE");
       return {
         success: false,
-        error: data.error || "Failed to clear today's data.",
+        error: data.error || "Failed to clear today's data on server.",
       };
-    } catch (err) {
-      console.error("clearToday error:", err);
-      return { success: false, error: "Network error." };
+    } catch {
+      // Offline — queue the DELETE for when connectivity returns
+      offlineQueue.enqueue("/api/worklog/today", "DELETE");
+      return { success: true }; // Local clear succeeded
     }
   }, []);
 
-  /**
-   * Insert a historical break and immediately recalibrate all timer values.
-   *
-   * The key insight: all derived values (totalWork, remainingWork, leaveTime) are
-   * computed at render time as:
-   *   totalWork = accumulatedWorkMs + currentSessionWork
-   *   currentSessionWork = now - lastStatusChange   (when working)
-   *
-   * So to recalibrate the countdown we must EITHER:
-   *  a) Reduce accumulatedWorkMs — if the break is in past committed time
-   *  b) Advance lastStatusChange — if the break is inside the current live session
-   *     (advancing it makes currentSessionWork shrink by the same amount)
-   *
-   * In practice we split the break into those two parts and apply each accordingly.
-   */
   const addHistoricalBreak = useCallback(
     (
       punchOutMs: number,
@@ -429,17 +427,13 @@ export function useWorkTimer(initialState: TimerState | null = null) {
         const lastChange = prev.lastStatusChange ?? prev.startTime ?? 0;
         const isWorking = prev.status === "working";
 
-        // Split the break into:
-        //   committedPart: falls before lastStatusChange (inside accumulatedWorkMs)
-        //   livePart:      falls after  lastStatusChange (inside currentSessionWork)
         let committedDeduction = breakDuration;
         let liveDeduction = 0;
 
         if (isWorking && punchInMs > lastChange) {
-          // The break (or part of it) is inside the current live session window
           const overlapStart = Math.max(punchOutMs, lastChange);
-          liveDeduction = punchInMs - overlapStart; // inside live window
-          committedDeduction = breakDuration - liveDeduction; // inside accumulated
+          liveDeduction = punchInMs - overlapStart;
+          committedDeduction = breakDuration - liveDeduction;
         }
 
         const newAccWork = Math.max(
@@ -448,13 +442,11 @@ export function useWorkTimer(initialState: TimerState | null = null) {
         );
         const newAccBreak = prev.accumulatedBreakMs + breakDuration;
 
-        // Advance lastStatusChange by the live portion so currentSessionWork shrinks
         const newLastStatusChange =
           isWorking && liveDeduction > 0
             ? lastChange + liveDeduction
             : prev.lastStatusChange;
 
-        // Merge log entries newest-first
         const newLogs = [
           { type: "Punch Out (Break)", time: punchOutMs },
           { type: "Punch In (Work)", time: punchInMs },
@@ -475,15 +467,18 @@ export function useWorkTimer(initialState: TimerState | null = null) {
         return newState;
       });
 
-      // Fire-and-forget: split the active DB row so the calendar reflects the break
+      // Fire-and-forget add-break DB sync (enqueue on failure)
+      const addBreakBody = {
+        breakStart: new Date(punchOutMs).toISOString(),
+        breakEnd: new Date(punchInMs).toISOString(),
+      };
       fetch("/api/worklog/add-break", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          breakStart: new Date(punchOutMs).toISOString(),
-          breakEnd: new Date(punchInMs).toISOString(),
-        }),
-      }).catch((err) => console.error("[add-break] DB sync failed:", err));
+        body: JSON.stringify(addBreakBody),
+      }).catch(() => {
+        offlineQueue.enqueue("/api/worklog/add-break", "POST", addBreakBody);
+      });
 
       setLastSynced(new Date());
       return { success: true };

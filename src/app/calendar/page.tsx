@@ -10,19 +10,31 @@ export default async function CalendarPage() {
     redirect("/login");
   }
 
-  const events = await getWorkLogs(session.user.id);
-  const userProfile = await getUserProfile(session.user.id);
-  const holidays = await getHolidays();
+  // Graceful SSR degradation: if server/DB is unreachable, return empty arrays.
+  // CalendarClient will load from wtt_calendar_cache (localStorage) when offline.
+  let events: Awaited<ReturnType<typeof getWorkLogs>> = [];
+  let userProfile = null;
+  let holidays: Awaited<ReturnType<typeof getHolidays>> = [];
 
-  const workDurationMs = userProfile 
-    ? (userProfile.workHours * 3600000) + (userProfile.workMinutes * 60000)
+  try {
+    [events, userProfile, holidays] = await Promise.all([
+      getWorkLogs(session.user.id),
+      getUserProfile(session.user.id),
+      getHolidays(),
+    ]);
+  } catch {
+    // Server unreachable — CalendarClient will fall back to cached data
+  }
+
+  const workDurationMs = userProfile
+    ? userProfile.workHours * 3600000 + userProfile.workMinutes * 60000
     : 8 * 3600000;
 
   return (
-    <CalendarClient 
-      initialEvents={events} 
+    <CalendarClient
+      initialEvents={events}
       initialHolidays={holidays}
-      timeFormat={userProfile?.timeFormat || "12h"} 
+      timeFormat={userProfile?.timeFormat || "12h"}
       workDurationMs={workDurationMs}
     />
   );

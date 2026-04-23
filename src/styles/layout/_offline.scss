@@ -1,0 +1,113 @@
+// ─── Offline Banner ──────────────────────────────────────────────────────────
+
+.offline-banner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  animation: fadeInBadge 0.25s ease;
+  margin-left: 0.5rem;
+
+  // ── States ──
+  &--offline {
+    background: linear-gradient(90deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.08));
+    border-bottom: 1px solid rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+  }
+
+  &--syncing {
+    background: linear-gradient(90deg, rgba(124, 58, 237, 0.15), rgba(124, 58, 237, 0.08));
+    border-bottom: 1px solid rgba(124, 58, 237, 0.3);
+    color: #c4b5fd;
+  }
+
+  &--synced {
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.08));
+    border-bottom: 1px solid rgba(16, 185, 129, 0.3);
+    color: #6ee7b7;
+  }
+
+  &__icon {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  &__text {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  &__badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+  }
+
+  &__spin {
+    animation: spin 1s linear infinite;
+  }
+}
+
+// ── Animations ───────────────────────────────────────────────────────────────
+
+@keyframes fadeInBadge {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+// ─── Calendar Offline Mode ───────────────────────────────────────────────────
+
+// Dim and block pointer events on FullCalendar navigation toolbar
+.calendar-offline-mode {
+  .fc-toolbar {
+    pointer-events: none;
+    opacity: 0.35;
+    user-select: none;
+  }
+}
+
+// Inline notice shown above the calendar grid
+.calendar-offline-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1rem;
+  margin-bottom: 0.75rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+
+  .calendar-offline-notice__icon {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    opacity: 0.8;
+  }
+}

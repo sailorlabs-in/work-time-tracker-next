@@ -24,6 +24,7 @@ import {
   RiDeleteBinLine,
   RiRefreshLine,
 } from "@remixicon/react";
+import OfflineBanner from "@/components/OfflineBanner";
 
 interface UserProfile {
   timeFormat?: string;
@@ -586,19 +587,22 @@ export default function DashboardClient({
             {/* LEFT: Timer card */}
             <div className="glass-card dashboard-card animate-in">
               <div className="dash-header">
-                <span
-                  className={`status-badge ${state.status === "working" ? "working" : "on-break"}`}
-                >
-                  {state.status === "working" ? (
-                    <>
-                      <RiRecordCircleFill size={14} /> Working
-                    </>
-                  ) : (
-                    <>
-                      <RiPauseCircleFill size={14} /> On Break
-                    </>
-                  )}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <span
+                    className={`status-badge ${state.status === "working" ? "working" : "on-break"}`}
+                  >
+                    {state.status === "working" ? (
+                      <>
+                        <RiRecordCircleFill size={14} /> Working
+                      </>
+                    ) : (
+                      <>
+                        <RiPauseCircleFill size={14} /> On Break
+                      </>
+                    )}
+                  </span>
+                  <OfflineBanner />
+                </div>
                 <span className="clock-display mono">{timeStr}</span>
               </div>
 
