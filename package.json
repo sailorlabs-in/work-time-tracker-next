@@ -24,7 +24,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "sass": "^1.97.3",
-    "vibe-message": "^1.0.4"
+    "vibe-message": "^1.1.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

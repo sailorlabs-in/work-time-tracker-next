@@ -363,11 +363,37 @@ export function useWorkTimer(initialState: TimerState | null = null) {
     return { success: true };
   }, []);
 
-  const resetDay = useCallback(() => {
+  const resetDay = useCallback(async () => {
+    const prev = stateRef.current;
+    const nowMs = Date.now();
+
+    // If the timer is active, punch out the current session first so the DB record is closed
+    if (prev.isActive && (prev.status === "working" || prev.status === "break")) {
+      // If on break, first close the break period, then punch out the work session
+      if (prev.status === "break" && prev.lastStatusChange) {
+        // Accumulate the break time that was in progress
+        const breakDuration = nowMs - prev.lastStatusChange;
+        const totalBreakMs = prev.accumulatedBreakMs + breakDuration;
+        // The work session was already paused, so just close with accumulated work
+        await sendLogToBackend(
+          "punch-out",
+          new Date(nowMs).toISOString(),
+          formatShortTime(prev.accumulatedWorkMs),
+        );
+      } else if (prev.status === "working" && prev.lastStatusChange) {
+        const totalWorkMs = prev.accumulatedWorkMs + (nowMs - prev.lastStatusChange);
+        await sendLogToBackend(
+          "punch-out",
+          new Date(nowMs).toISOString(),
+          formatShortTime(totalWorkMs),
+        );
+      }
+    }
+
     localStorage.removeItem("wtt_state_next");
     offlineQueue.clearQueue(); // discard any pending offline actions for old session
     setState(defaultState);
-    clearTimerStateFromBackend();
+    await clearTimerStateFromBackend();
   }, []);
 
   const clearToday = useCallback(async () => {
@@ -486,6 +512,46 @@ export function useWorkTimer(initialState: TimerState | null = null) {
     [],
   );
 
+  // Stale timer detection: timer started on a different calendar day
+  const isStaleTimer = (() => {
+    if (!state.isActive || !state.startTime) return false;
+    const startDate = new Date(state.startTime);
+    const today = new Date();
+    return (
+      startDate.getFullYear() !== today.getFullYear() ||
+      startDate.getMonth() !== today.getMonth() ||
+      startDate.getDate() !== today.getDate()
+    );
+  })();
+
+  const terminatePreviousTimer = useCallback(
+    async (endTimeMs: number): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const res = await fetch("/api/worklog/terminate-previous", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endTime: new Date(endTimeMs).toISOString() }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          return {
+            success: false,
+            error: data.error || "Failed to terminate previous timer.",
+          };
+        }
+        // Clear local state
+        localStorage.removeItem("wtt_state_next");
+        setState(defaultState);
+        await clearTimerStateFromBackend();
+        return { success: true };
+      } catch (err) {
+        console.error("terminatePreviousTimer error:", err);
+        return { success: false, error: "Network error." };
+      }
+    },
+    [],
+  );
+
   return {
     state,
     totalWork,
@@ -496,11 +562,13 @@ export function useWorkTimer(initialState: TimerState | null = null) {
     currentTime,
     lastSynced,
     isLoaded,
+    isStaleTimer,
     startDay,
     punchToggle,
     addHistoricalBreak,
     resetDay,
     clearToday,
+    terminatePreviousTimer,
     formatTime,
     formatShortTime,
   };
