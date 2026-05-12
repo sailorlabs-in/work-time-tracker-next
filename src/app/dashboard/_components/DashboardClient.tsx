@@ -64,10 +64,10 @@ function fmtTime(ms: number, format: "12h" | "24h" = "12h"): string {
 }
 
 // ─── Build tabular session rows from log ─────────────────────
-interface SessionRow {
-  punchIn: number;
-  punchOut: number | null;
-}
+// interface SessionRow {
+//   punchIn: number;
+//   punchOut: number | null;
+// }
 
 // function buildSessionRows(logs: TimerLog[], status: TimerStatus): SessionRow[] {
 //   const sorted = [...logs].sort((a, b) => a.time - b.time);
