@@ -7,6 +7,8 @@ import {
   TimerLog,
   TimerStatus,
   TimerState,
+  buildSessionRows,
+  SessionRow,
 } from "@/hooks/useWorkTimer";
 import {
   RiCupLine,
@@ -24,6 +26,7 @@ import {
   RiDeleteBinLine,
   RiRefreshLine,
   RiAlertLine,
+  RiEdit2Line,
 } from "@remixicon/react";
 import OfflineBanner from "@/components/OfflineBanner";
 
@@ -66,26 +69,26 @@ interface SessionRow {
   punchOut: number | null;
 }
 
-function buildSessionRows(logs: TimerLog[], status: TimerStatus): SessionRow[] {
-  const sorted = [...logs].sort((a, b) => a.time - b.time);
-  const rows: SessionRow[] = [];
-  let currentIn: number | null = null;
+// function buildSessionRows(logs: TimerLog[], status: TimerStatus): SessionRow[] {
+//   const sorted = [...logs].sort((a, b) => a.time - b.time);
+//   const rows: SessionRow[] = [];
+//   let currentIn: number | null = null;
 
-  for (const log of sorted) {
-    if (log.type === "Start" || log.type === "Punch In (Work)") {
-      currentIn = log.time;
-    } else if (log.type === "Punch Out (Break)" && currentIn !== null) {
-      rows.push({ punchIn: currentIn, punchOut: log.time });
-      currentIn = null;
-    }
-  }
+//   for (const log of sorted) {
+//     if (log.type === "Start" || log.type === "Punch In (Work)") {
+//       currentIn = log.time;
+//     } else if (log.type === "Punch Out (Break)" && currentIn !== null) {
+//       rows.push({ punchIn: currentIn, punchOut: log.time });
+//       currentIn = null;
+//     }
+//   }
 
-  if (status === "working" && currentIn !== null) {
-    rows.push({ punchIn: currentIn, punchOut: null });
-  }
+//   if (status === "working" && currentIn !== null) {
+//     rows.push({ punchIn: currentIn, punchOut: null });
+//   }
 
-  return rows;
-}
+//   return rows;
+// }
 
 // ─── Modal: Add Break Entry ───────────────────────────────────
 interface AddBreakModalProps {
@@ -385,13 +388,103 @@ function TerminateTimerModal({
   );
 }
 
+// ─── Modal: Edit Session ───────────────────────────────────────
+interface EditSessionModalProps {
+  session: SessionRow;
+  index: number;
+  onClose: () => void;
+  onSubmit: (punchIn: string, punchOut: string | null) => void;
+}
+
+function EditSessionModal({
+  session,
+  index,
+  onClose,
+  onSubmit,
+}: EditSessionModalProps) {
+  const toTimeStr = (ms: number) => {
+    const d = new Date(ms);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  };
+
+  const [punchIn, setPunchIn] = useState(toTimeStr(session.punchIn));
+  const [punchOut, setPunchOut] = useState(
+    session.punchOut ? toTimeStr(session.punchOut) : "",
+  );
+  const [error, setError] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (punchOut && punchIn >= punchOut) {
+      setError("End time must be after start time.");
+      return;
+    }
+    onSubmit(punchIn, punchOut || null);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header-centered">
+          <span className="modal-icon">
+            <RiEdit2Line size={24} />
+          </span>
+          <h2>Edit Session {index + 1}</h2>
+          <p className="modal-subtitle">Update the start and end times</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="modal-form">
+          {error && <div className="auth-error">{error}</div>}
+
+          <div className="form-group">
+            <label htmlFor="editPunchIn">Start Time</label>
+            <input
+              id="editPunchIn"
+              type="time"
+              value={punchIn}
+              onChange={(e) => setPunchIn(e.target.value)}
+              required
+            />
+          </div>
+
+          {session.punchOut !== null && (
+            <div className="form-group">
+              <label htmlFor="editPunchOut">End Time</label>
+              <input
+                id="editPunchOut"
+                type="time"
+                value={punchOut}
+                onChange={(e) => setPunchOut(e.target.value)}
+                required
+              />
+            </div>
+          )}
+
+          <div className="modal-footer">
+            <button type="button" className="btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="btn-primary">
+              <RiCheckLine size={18} /> Update Session
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Session Panel (right column) ────────────────────────────
 function SessionPanel({
   logs,
   status,
+  onEdit,
+  onDelete,
 }: {
   logs: TimerLog[];
   status: TimerStatus;
+  onEdit: (index: number) => void;
+  onDelete: (index: number) => void;
 }) {
   const rows = buildSessionRows(logs, status);
 
@@ -411,11 +504,9 @@ function SessionPanel({
       ) : (
         <div className="session-panel-list">
           {rows.map((row, i) => {
-            // eslint-disable-next-line react-hooks/purity
             const durationMs = row.punchOut
               ? row.punchOut - row.punchIn
-              : // eslint-disable-next-line react-hooks/purity
-                Date.now() - row.punchIn;
+              : Date.now() - row.punchIn;
             const h = Math.floor(durationMs / 3600000);
             const m = Math.floor((durationMs % 3600000) / 60000);
             const durationStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
@@ -426,25 +517,44 @@ function SessionPanel({
                 key={i}
                 className={`session-panel-row${isActive ? " session-panel-row-active" : ""}`}
               >
-                <div className="session-panel-num">{i + 1}</div>
-                <div className="session-panel-times">
-                  <span className="session-panel-time mono">
-                    {fmtTime(row.punchIn, status === "working" ? "12h" : "12h")}{" "}
-                    {/* Will fix via prop later or component context if possible, wait, session panel needs user profile. We'll pass userProfile to SessionPanel in next chunk */}
-                  </span>
-                  <RiArrowRightLine className="session-panel-arrow" size={14} />
-                  <span className="session-panel-time mono">
-                    {row.punchOut ? (
-                      fmtTime(
-                        row.punchOut,
-                        status === "working" ? "12h" : "12h",
-                      )
-                    ) : (
-                      <span className="session-ongoing">ongoing</span>
-                    )}
-                  </span>
+                <div className="session-panel-main">
+                  <div className="session-panel-num">{i + 1}</div>
+                  <div className="session-panel-times">
+                    <span className="session-panel-time mono">
+                      {fmtTime(row.punchIn)}
+                    </span>
+                    <RiArrowRightLine
+                      className="session-panel-arrow"
+                      size={14}
+                    />
+                    <span className="session-panel-time mono">
+                      {row.punchOut ? (
+                        fmtTime(row.punchOut)
+                      ) : (
+                        <span className="session-ongoing">ongoing</span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="session-panel-dur mono">{durationStr}</div>
                 </div>
-                <div className="session-panel-dur mono">{durationStr}</div>
+
+                <div className="session-panel-actions">
+                  <button
+                    className="session-action-btn edit"
+                    onClick={() => onEdit(i)}
+                    title="Edit Session"
+                  >
+                    <RiEdit2Line size={16} />
+                  </button>
+                  <button
+                    className="session-action-btn delete"
+                    onClick={() => onDelete(i)}
+                    title="Delete Session"
+                  >
+                    <RiDeleteBinLine size={16} />
+                  </button>
+                </div>
+
                 {isActive && (
                   <span className="session-panel-live-dot" title="Active" />
                 )}
@@ -478,6 +588,8 @@ export default function DashboardClient({
     resetDay,
     clearToday,
     terminatePreviousTimer,
+    updateSession,
+    deleteSession,
     formatTime: ft,
   } = useWorkTimer(initialTimerState);
 
@@ -503,6 +615,9 @@ export default function DashboardClient({
   const [showLatePunchInModal, setShowLatePunchInModal] = useState(false);
   const [showLatePunchOutModal, setShowLatePunchOutModal] = useState(false);
   const [showTerminateModal, setShowTerminateModal] = useState(false);
+  const [editingSessionIdx, setEditingSessionIdx] = useState<number | null>(
+    null,
+  );
 
   useEffect(() => {
     const updateTime = () => {
@@ -631,6 +746,23 @@ export default function DashboardClient({
             const result = await terminatePreviousTimer(endTimeMs);
             if (result.success) setShowTerminateModal(false);
             return result;
+          }}
+        />
+      )}
+      {editingSessionIdx !== null && (
+        <EditSessionModal
+          session={
+            buildSessionRows(state.logs, state.status)[editingSessionIdx]
+          }
+          index={editingSessionIdx}
+          onClose={() => setEditingSessionIdx(null)}
+          onSubmit={(inStr, outStr) => {
+            updateSession(
+              editingSessionIdx,
+              timeStrToMs(inStr),
+              outStr ? timeStrToMs(outStr) : null,
+            );
+            setEditingSessionIdx(null);
           }}
         />
       )}
@@ -881,7 +1013,16 @@ export default function DashboardClient({
             </div>
 
             {/* RIGHT: Session panel */}
-            <SessionPanel logs={state.logs} status={state.status} />
+            <SessionPanel
+              logs={state.logs}
+              status={state.status}
+              onEdit={(idx) => setEditingSessionIdx(idx)}
+              onDelete={(idx) => {
+                if (window.confirm("Are you sure you want to delete this session?")) {
+                  deleteSession(idx);
+                }
+              }}
+            />
           </div>
         )}
       </div>

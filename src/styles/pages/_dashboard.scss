@@ -80,13 +80,13 @@
 }
 
 .session-panel-row {
-  display: grid;
-  grid-template-columns: 28px 1fr auto;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 10px;
-  padding: 10px 20px;
+  padding: 12px 20px;
   border-bottom: 1px solid var(--card-border);
-  transition: background var(--transition);
+  transition: all var(--transition);
   position: relative;
 }
 
@@ -101,6 +101,14 @@
 
 .session-panel-row-active {
   background: rgba(46, 174, 91, 0.04);
+}
+
+.session-panel-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
 }
 
 .session-panel-num {
@@ -124,7 +132,7 @@
 .session-panel-times {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -144,6 +152,53 @@
   font-size: 0.78rem;
   color: var(--text-muted);
   white-space: nowrap;
+  margin-left: auto;
+  padding-right: 12px;
+}
+
+.session-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.session-panel-row:hover .session-panel-actions {
+  opacity: 1;
+}
+
+.session-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.session-action-btn:hover {
+  background: var(--accent-subtle);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  transform: translateY(-1px);
+}
+
+.session-action-btn.delete:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+@media (max-width: 640px) {
+  .session-panel-actions {
+    opacity: 1;
+  }
 }
 
 .session-panel-live-dot {

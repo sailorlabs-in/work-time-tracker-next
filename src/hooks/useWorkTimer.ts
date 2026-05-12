@@ -56,6 +56,49 @@ export function formatShortTime(ms: number): string {
   return `${h}h ${m}m`;
 }
 
+// ── Session Builder ──────────────────────────────────────────────────────────
+
+export interface SessionRow {
+  punchIn: number;
+  punchOut: number | null;
+  inLogIndex: number;
+  outLogIndex: number | null;
+}
+
+export function buildSessionRows(logs: TimerLog[], status: TimerStatus): SessionRow[] {
+  const sortedWithIndex = logs
+    .map((log, index) => ({ ...log, originalIndex: index }))
+    .sort((a, b) => a.time - b.time);
+
+  const rows: SessionRow[] = [];
+  let currentIn: { time: number; originalIndex: number } | null = null;
+
+  for (const log of sortedWithIndex) {
+    if (log.type === "Start" || log.type === "Punch In (Work)") {
+      currentIn = { time: log.time, originalIndex: log.originalIndex };
+    } else if (log.type === "Punch Out (Break)" && currentIn !== null) {
+      rows.push({
+        punchIn: currentIn.time,
+        punchOut: log.time,
+        inLogIndex: currentIn.originalIndex,
+        outLogIndex: log.originalIndex,
+      });
+      currentIn = null;
+    }
+  }
+
+  if (status === "working" && currentIn !== null) {
+    rows.push({
+      punchIn: currentIn.time,
+      punchOut: null,
+      inLogIndex: currentIn.originalIndex,
+      outLogIndex: null,
+    });
+  }
+
+  return rows;
+}
+
 // ── Offline-aware backend helpers ─────────────────────────────────────────────
 
 async function sendLogToBackend(
@@ -569,6 +612,137 @@ export function useWorkTimer(initialState: TimerState | null = null) {
     resetDay,
     clearToday,
     terminatePreviousTimer,
+    updateSession: useCallback(
+      (index: number, newPunchIn: number, newPunchOut: number | null) => {
+        setState((prev) => {
+          const rows = buildSessionRows(prev.logs, prev.status);
+          const rowToEdit = rows[index];
+          if (!rowToEdit) return prev;
+
+          const newLogs = [...prev.logs];
+          newLogs[rowToEdit.inLogIndex] = {
+            ...newLogs[rowToEdit.inLogIndex],
+            time: newPunchIn,
+          };
+          if (rowToEdit.outLogIndex !== null && newPunchOut !== null) {
+            newLogs[rowToEdit.outLogIndex] = {
+              ...newLogs[rowToEdit.outLogIndex],
+              time: newPunchOut,
+            };
+          }
+
+          // Sort logs descending (latest first) as per useWorkTimer convention
+          newLogs.sort((a, b) => b.time - a.time);
+
+          // Recalculate accumulated times
+          const sortedAsc = [...newLogs].sort((a, b) => a.time - b.time);
+          let accWork = 0;
+          let accBreak = 0;
+          let lastOut: number | null = null;
+          let currentIn: number | null = null;
+
+          for (const log of sortedAsc) {
+            if (log.type === "Start" || log.type === "Punch In (Work)") {
+              currentIn = log.time;
+              if (lastOut !== null) {
+                accBreak += currentIn - lastOut;
+              }
+            } else if (log.type === "Punch Out (Break)" && currentIn !== null) {
+              accWork += log.time - currentIn;
+              lastOut = log.time;
+              currentIn = null;
+            }
+          }
+
+          // If the last session is ongoing, status remains 'working'
+          // and we only care about accumulated completed work.
+          // currentSessionWork will be added in the computed values.
+
+          const newState: TimerState = {
+            ...prev,
+            logs: newLogs,
+            accumulatedWorkMs: accWork,
+            accumulatedBreakMs: accBreak,
+            // If the edited row was the most recent one, update lastStatusChange
+            lastStatusChange:
+              index === rows.length - 1
+                ? (prev.status === "working" ? newPunchIn : (newPunchOut ?? prev.lastStatusChange))
+                : prev.lastStatusChange,
+          };
+
+          syncTimerStateToBackend(newState);
+          // Also sync to worklog table
+          fetch("/api/worklog/today/sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ logs: newLogs }),
+          }).catch(() => {
+            offlineQueue.enqueue("/api/worklog/today/sync", "POST", { logs: newLogs });
+          });
+
+          return newState;
+        });
+      },
+      [],
+    ),
+    deleteSession: useCallback((index: number) => {
+      setState((prev) => {
+        const rows = buildSessionRows(prev.logs, prev.status);
+        const rowToDelete = rows[index];
+        if (!rowToDelete) return prev;
+
+        const newLogs = prev.logs.filter(
+          (_, i) =>
+            i !== rowToDelete.inLogIndex && i !== rowToDelete.outLogIndex,
+        );
+
+        // Recalculate accumulated times
+        const sortedAsc = [...newLogs].sort((a, b) => a.time - b.time);
+        let accWork = 0;
+        let accBreak = 0;
+        let lastOut: number | null = null;
+        let currentIn: number | null = null;
+
+        for (const log of sortedAsc) {
+          if (log.type === "Start" || log.type === "Punch In (Work)") {
+            currentIn = log.time;
+            if (lastOut !== null) {
+              accBreak += currentIn - lastOut;
+            }
+          } else if (log.type === "Punch Out (Break)" && currentIn !== null) {
+            accWork += log.time - currentIn;
+            lastOut = log.time;
+            currentIn = null;
+          }
+        }
+
+        const newState: TimerState = {
+          ...prev,
+          logs: newLogs,
+          accumulatedWorkMs: accWork,
+          accumulatedBreakMs: accBreak,
+        };
+
+        // If we deleted all logs, reset active state? Or just let it be empty?
+        if (newLogs.length === 0) {
+           newState.isActive = false;
+           newState.status = "idle";
+           newState.startTime = null;
+           newState.lastStatusChange = null;
+        }
+
+        syncTimerStateToBackend(newState);
+        fetch("/api/worklog/today/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ logs: newLogs }),
+        }).catch(() => {
+          offlineQueue.enqueue("/api/worklog/today/sync", "POST", { logs: newLogs });
+        });
+
+        return newState;
+      });
+    }, []),
     formatTime,
     formatShortTime,
   };
