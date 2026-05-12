@@ -96,6 +96,7 @@
 
 .session-panel-row:hover {
   background: var(--accent-subtle);
+  transform: translateX(4px);
 }
 
 .session-panel-row-active {
@@ -274,11 +275,15 @@
   gap: 6px;
   transition:
     border-color var(--transition),
-    background var(--transition);
+    background var(--transition),
+    transform var(--transition),
+    box-shadow var(--transition);
 }
 
 .stat-card:hover {
-  border-color: var(--card-border-hover);
+  border-color: var(--accent-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--accent-glow);
 }
 
 .stat-label {

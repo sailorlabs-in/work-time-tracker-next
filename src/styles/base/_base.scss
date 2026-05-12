@@ -1,3 +1,5 @@
+@use "./mixins" as *;
+
 /* ─── Reset ─── */
 *,
 *::before,
@@ -118,4 +120,9 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--slate);
+}
+
+/* ─── Global Utility Classes ─── */
+.glass-card {
+  @include glass-card;
 }
