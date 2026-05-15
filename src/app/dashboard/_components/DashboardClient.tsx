@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   useWorkTimer,
   formatShortTime,
@@ -61,6 +61,24 @@ function fmtTime(ms: number, format: "12h" | "24h" = "12h"): string {
     minute: "2-digit",
     hour12: format === "12h",
   });
+}
+
+function getOtCount(totalWorkMs: number): number {
+  const standardWorkMs = 8 * 3600000; // 8 hours
+  const firstOtThreshold = standardWorkMs + 45 * 60000; // 8h 45m
+  const subsequentOtInterval = 30 * 60000; // 30 mins
+
+  if (totalWorkMs <= firstOtThreshold) return 0;
+  return 1 + Math.floor((totalWorkMs - firstOtThreshold - 1) / subsequentOtInterval);
+}
+
+function getOtCreditStr(count: number): string {
+  if (count <= 0) return "1hr Overtime";
+  const totalMinutes = 60 + (count - 1) * 30;
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (m === 0) return `${h}hr Overtime`;
+  return `${h}hr ${m} min Overtime`;
 }
 
 // ─── Build tabular session rows from log ─────────────────────
@@ -610,6 +628,9 @@ export default function DashboardClient({
   const [earlyLeaveTimeStr, setEarlyLeaveTimeStr] = useState<string>("");
   const [startTimeStr, setStartTimeStr] = useState<string>("--:--");
   const [lastSyncedStr, setLastSyncedStr] = useState<string>("");
+  const [nextOtTimeStr, setNextOtTimeStr] = useState<string>("");
+  const [showSecretOt, setShowSecretOt] = useState(false);
+  const secretTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [showBreakModal, setShowBreakModal] = useState(false);
   const [showLatePunchInModal, setShowLatePunchInModal] = useState(false);
@@ -644,6 +665,25 @@ export default function DashboardClient({
         );
       }
 
+      const standardWorkMs = 8 * 3600000;
+      const firstOtThreshold = standardWorkMs + 45 * 60000;
+      const subsequentOtInterval = 30 * 60000;
+
+      const currentCount = getOtCount(totalWork);
+      const nextOtThresholdMs = currentCount === 0 
+        ? firstOtThreshold + 60000 // 8h 46m
+        : firstOtThreshold + 60000 + currentCount * subsequentOtInterval;
+
+      const msUntilNextOt = nextOtThresholdMs - totalWork;
+      const nextOtClockTime = now + msUntilNextOt;
+      setNextOtTimeStr(
+        new Date(nextOtClockTime).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: timeFormat === "12h",
+        }),
+      );
+
       if (state.startTime) {
         setStartTimeStr(
           new Date(state.startTime).toLocaleTimeString([], {
@@ -670,7 +710,7 @@ export default function DashboardClient({
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
-  }, [remainingWork, state.startTime, lastSynced]);
+  }, [remainingWork, totalWork, state.startTime, lastSynced, timeFormat]);
 
   // entryTime is initialized in useState
 
@@ -716,6 +756,12 @@ export default function DashboardClient({
     if (!r.success) return r.error ?? "Failed to punch in.";
     setShowLatePunchInModal(false);
     return null;
+  };
+
+  const triggerSecretOt = () => {
+    if (secretTimerRef.current) clearTimeout(secretTimerRef.current);
+    setShowSecretOt(true);
+    secretTimerRef.current = setTimeout(() => setShowSecretOt(false), 7000);
   };
 
   return (
@@ -869,6 +915,8 @@ export default function DashboardClient({
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                   <span
                     className={`status-badge ${state.status === "working" ? "working" : "on-break"}`}
+                    onClick={triggerSecretOt}
+                    style={{ cursor: 'pointer' }}
                   >
                     {state.status === "working" ? (
                       <>
@@ -897,15 +945,30 @@ export default function DashboardClient({
                 </span>
               </div>
 
-              {!isOvertime && (
+              {(!isOvertime || showSecretOt) && (
                 <div className="leave-time-display">
-                  <span className="leave-time-label">You can leave at </span>
-                  <span
-                    className="leave-time-value mono"
-                    title={`Early leave: ${earlyLeaveTimeStr}`}
-                  >
-                    {leaveTimeStr}
-                  </span>
+                  {!showSecretOt ? (
+                    <>
+                      <span className="leave-time-label">You can leave at </span>
+                      <span
+                        className="leave-time-value mono"
+                        title={`Early leave: ${earlyLeaveTimeStr}`}
+                      >
+                        {leaveTimeStr}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="leave-time-label">
+                        {getOtCount(totalWork) === 0 
+                          ? `${getOtCreditStr(1)} starts at` 
+                          : `${getOtCreditStr(getOtCount(totalWork) + 1)} at`}
+                      </span>
+                      <span className="leave-time-value mono">
+                        {nextOtTimeStr}
+                      </span>
+                    </>
+                  )}
                 </div>
               )}
 
