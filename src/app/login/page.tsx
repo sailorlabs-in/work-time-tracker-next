@@ -35,6 +35,7 @@ export default function LoginPage() {
           }
         } catch (pushErr) {
           console.error("Failed to register push notifications:", pushErr);
+          // Continue even if push registration fails
         }
         router.push("/dashboard");
         router.refresh();
