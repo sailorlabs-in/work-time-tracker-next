@@ -4,6 +4,16 @@ const baseUrl = process.env.NEXT_PUBLIC_NOTIFICATION_BASE_URL;
 const appId = process.env.NEXT_PUBLIC_NOTIFICATION_APP_ID;
 const publicKey = process.env.NEXT_PUBLIC_NOTIFICATION_PUBLIC_KEY;
 
+// Debug: Log environment variables on load
+if (typeof window !== 'undefined') {
+  console.log('[VIBE] Environment Check:', {
+    baseUrl: baseUrl ? '✓ set' : '✗ missing',
+    appId: appId ? '✓ set' : '✗ missing',
+    publicKey: publicKey ? '✓ set' : '✗ missing',
+    baseUrlValue: baseUrl,
+  });
+}
+
 const VAPID_STORAGE_KEY = 'wtt_vapid_key';
 const USER_EMAIL_STORAGE_KEY = 'wtt_user_email';
 

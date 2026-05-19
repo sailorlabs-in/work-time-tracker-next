@@ -6,6 +6,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_NOTIFICATION_APP_ID: app_HKKiWsalytaLP9Dd
+        NEXT_PUBLIC_NOTIFICATION_PUBLIC_KEY: sk_AvDKMijNzNLat_QY4tBGIiic15ZVob274wEzo8hsxJ4CGRXOp0E26LO9BuY5pJYO
+        NEXT_PUBLIC_NOTIFICATION_BASE_URL: https://vibemessage.sailorlabs.in/api
     restart: always
     ports:
       - "3100:3100"

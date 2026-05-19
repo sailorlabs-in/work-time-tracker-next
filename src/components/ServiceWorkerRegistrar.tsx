@@ -43,15 +43,18 @@ export default function ServiceWorkerRegistrar() {
 
       (async () => {
         try {
-          if (vibeClient) {
-            console.log(
-              "[VAPID] Re-registering device for:",
-              emailToRegister
-            );
-            await vibeClient.registerDevice({
-              externalUserId: emailToRegister,
-            });
+          if (!vibeClient) {
+            console.warn("[VAPID] vibeClient not initialized");
+            return;
           }
+          console.log(
+            "[VAPID] Re-registering device for:",
+            emailToRegister
+          );
+          await vibeClient.registerDevice({
+            externalUserId: emailToRegister,
+          });
+          console.log("[VAPID] Device re-registered successfully");
         } catch (err) {
           console.error(
             "[VAPID] Failed to re-register push notifications:",
