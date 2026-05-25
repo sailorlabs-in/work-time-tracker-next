@@ -29,18 +29,33 @@ function isWithinISTWorkingHours(): boolean {
 // ── Route ─────────────────────────────────────────────────────────────────────
 
 /**
- * POST /api/cron/notify
+ * GET and POST /api/cron/notify
  * Called every minute by an external cron scheduler.
  * Sends progress + completion push notifications for all active timers.
  * Only fires between IST 07:00–20:00.
  *
- * Secured by: Authorization: Bearer <CRON_SECRET>
+ * Secured by: Authorization: Bearer <CRON_SECRET> or ?secret=<CRON_SECRET>
  */
+export async function GET(req: Request) {
+  return handleNotify(req);
+}
+
 export async function POST(req: Request) {
+  return handleNotify(req);
+}
+
+async function handleNotify(req: Request) {
   // 1. Auth check
   const authHeader = req.headers.get("authorization");
+  const { searchParams } = new URL(req.url);
+  const querySecret = searchParams.get("secret");
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+
+  const isAuthorized =
+    cronSecret &&
+    (authHeader === `Bearer ${cronSecret}` || querySecret === cronSecret);
+
+  if (!isAuthorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
