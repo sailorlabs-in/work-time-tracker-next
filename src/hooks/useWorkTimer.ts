@@ -244,8 +244,7 @@ export function useWorkTimer(
             : 0;
         const totalWorkNow = state.accumulatedWorkMs + currentWork;
 
-        // 1. Completion Overtime Notification
-        const shouldNotifyCompletion = userProfile ? userProfile.notifyOnCompletion ?? true : true;
+        // 1. Track completion state (cron handles the actual push notification)
         if (
           state.status === "working" &&
           !state.hasFiredOtNotification &&
@@ -253,20 +252,14 @@ export function useWorkTimer(
           totalWorkNow >= state.targetWorkMs
         ) {
           setState((prev) => ({ ...prev, hasFiredOtNotification: true }));
-          if (shouldNotifyCompletion) {
-            // Best-effort: ignore failure (we don't queue notifications)
-            fetch("/api/user/notify-overtime", { method: "POST" }).catch(() => {});
-          }
         }
 
-        // 2. Periodic Progress Notification
-        const shouldNotifyConstant = userProfile ? userProfile.notifyConstant ?? false : false;
+        // 2. Track interval state (cron handles the actual push notification)
         const notifyIntervalMins = userProfile ? userProfile.notifyInterval ?? 30 : 30;
         const intervalMs = notifyIntervalMins * 60 * 1000;
 
         if (
           state.status === "working" &&
-          shouldNotifyConstant &&
           state.targetWorkMs > 0 &&
           totalWorkNow < state.targetWorkMs // Only until time completes
         ) {
@@ -274,18 +267,8 @@ export function useWorkTimer(
           const lastNotified = state.lastNotifiedInterval || 0;
 
           if (currentMultiple > lastNotified) {
+            // Update local state so DB sync keeps the cron up-to-date
             setState((prev) => ({ ...prev, lastNotifiedInterval: currentMultiple }));
-
-            // Trigger progress notification
-            const remaining = state.targetWorkMs - totalWorkNow;
-            fetch("/api/user/notify-progress", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                completedMs: totalWorkNow,
-                remainingMs: remaining,
-              }),
-            }).catch(() => {});
           }
         }
       }, 1000);

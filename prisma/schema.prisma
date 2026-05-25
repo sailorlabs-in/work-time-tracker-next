@@ -25,7 +25,8 @@ model User {
   workLogs             WorkLog[]
   notifications        Notification[]
   timerState           TimerState?
-  createdAt  DateTime    @default(now())
+  createdAt            DateTime    @default(now())
+  autoStoppedAt        DateTime?   // set by nightly cron when timer is auto-stopped
 }
 
 model WorkLog {
