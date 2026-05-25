@@ -93,10 +93,11 @@ export default function SettingsClient() {
       });
 
       if (res.ok) {
-        setProfileMessage({
-          type: "success",
-          text: "Profile updated successfully!",
-        });
+        window.dispatchEvent(
+          new CustomEvent("show-toast", {
+            detail: { message: "Profile updated successfully!" },
+          })
+        );
         // Ask for permissions if toggled on
         if (notificationsEnabled && "Notification" in window) {
           if (
@@ -155,6 +156,11 @@ export default function SettingsClient() {
           type: "success",
           text: "Password changed successfully!",
         });
+        window.dispatchEvent(
+          new CustomEvent("show-toast", {
+            detail: { message: "Password changed successfully!" },
+          })
+        );
         setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");
@@ -244,24 +250,6 @@ export default function SettingsClient() {
                 </div>
               </div>
 
-              <div className="settings-row">
-                <div className="settings-row-info">
-                  <label>Desktop Notifications</label>
-                  <p>Get alerted when your workday is complete and OT begins.</p>
-                </div>
-                <div className="settings-row-control" style={{ justifyContent: "flex-end" }}>
-                  <label className="toggle-wrapper" style={{ margin: 0 }}>
-                    <input
-                      type="checkbox"
-                      className="toggle-checkbox"
-                      checked={notificationsEnabled}
-                      onChange={(e) => setNotificationsEnabled(e.target.checked)}
-                    />
-                    <div className="toggle-slider"></div>
-                  </label>
-                </div>
-              </div>
-
             </div>
             <div className="settings-card-footer">
               <button
@@ -287,8 +275,27 @@ export default function SettingsClient() {
 
           <form onSubmit={handleProfileSubmit}>
             <div className="settings-section-body">
-              {/* Toggle 1: Notify on completion */}
+              {/* Global Switch: Desktop Notifications */}
               <div className="settings-row">
+                <div className="settings-row-info">
+                  <label>Desktop Notifications</label>
+                  <p>Enable push alerts and desktop popup notifications for work tracker activities.</p>
+                </div>
+                <div className="settings-row-control" style={{ justifyContent: "flex-end" }}>
+                  <label className="toggle-wrapper" style={{ margin: 0 }}>
+                    <input
+                      type="checkbox"
+                      className="toggle-checkbox"
+                      checked={notificationsEnabled}
+                      onChange={(e) => setNotificationsEnabled(e.target.checked)}
+                    />
+                    <div className="toggle-slider"></div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Toggle 1: Notify on completion */}
+              <div className="settings-row" style={!notificationsEnabled ? { opacity: 0.5, transition: "all 0.2s" } : { transition: "all 0.2s" }}>
                 <div className="settings-row-info">
                   <label>Notify on Completion</label>
                   <p>Send a desktop alert as soon as you complete your target work hours.</p>
@@ -308,7 +315,7 @@ export default function SettingsClient() {
               </div>
 
               {/* Toggle 2: Constant notifications */}
-              <div className="settings-row">
+              <div className="settings-row" style={!notificationsEnabled ? { opacity: 0.5, transition: "all 0.2s" } : { transition: "all 0.2s" }}>
                 <div className="settings-row-info">
                   <label>Periodic Progress Alerts</label>
                   <p>Receive constant updates of completed work time and remaining hours until complete.</p>
@@ -329,7 +336,7 @@ export default function SettingsClient() {
 
               {/* Select Option: Interval (Visible if Constant Notifications is checked) */}
               {notifyConstant && (
-                <div className="settings-row animate-in">
+                <div className="settings-row animate-in" style={!notificationsEnabled ? { opacity: 0.5, transition: "all 0.2s" } : { transition: "all 0.2s" }}>
                   <div className="settings-row-info">
                     <label>Alert Interval</label>
                     <p>Choose how frequently you receive progress updates.</p>
@@ -348,7 +355,7 @@ export default function SettingsClient() {
                         fontSize: "0.95rem",
                         width: "100%",
                         maxWidth: "320px",
-                        cursor: "pointer",
+                        cursor: notificationsEnabled ? "pointer" : "not-allowed",
                         outline: "none",
                         transition: "all 0.2s",
                       }}

@@ -15,6 +15,22 @@ export default function NotificationBanner() {
   const { status } = useSession();
 
   useEffect(() => {
+    const handleLocalToast = (e: Event) => {
+      const customEvent = e as CustomEvent<{ message: string }>;
+      const newToast: AppNotification = {
+        id: Date.now().toString(),
+        message: customEvent.detail.message || "Action completed successfully!",
+      };
+      setToasts((prev) => [...prev, newToast]);
+    };
+
+    window.addEventListener("show-toast", handleLocalToast);
+    return () => {
+      window.removeEventListener("show-toast", handleLocalToast);
+    };
+  }, []);
+
+  useEffect(() => {
     if (status !== "authenticated") return;
 
     if (vibeClient) {
