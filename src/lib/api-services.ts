@@ -26,6 +26,8 @@ export async function getTimerState(
         : null,
       status: timerState.status as TimerStatus,
       logs: timerState.logs as unknown as TimerLog[],
+      hasFiredOtNotification: timerState.hasFiredOtNotification,
+      lastNotifiedInterval: timerState.lastNotifiedInterval,
     };
   } catch (error) {
     console.error("Get timer state error:", error);
@@ -42,6 +44,10 @@ export async function getUserProfile(userId: string) {
         workHours: true,
         workMinutes: true,
         breakMinutes: true,
+        notificationsEnabled: true,
+        notifyOnCompletion: true,
+        notifyConstant: true,
+        notifyInterval: true,
       }
     });
     return user;

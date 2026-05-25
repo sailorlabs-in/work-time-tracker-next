@@ -25,6 +25,7 @@ export interface TimerState {
   status: TimerStatus;
   logs: TimerLog[];
   hasFiredOtNotification?: boolean;
+  lastNotifiedInterval?: number;
 }
 
 const defaultState: TimerState = {
@@ -38,6 +39,7 @@ const defaultState: TimerState = {
   status: "idle",
   logs: [],
   hasFiredOtNotification: false,
+  lastNotifiedInterval: 0,
 };
 
 export function formatTime(ms: number): string {
@@ -154,6 +156,7 @@ async function loadTimerStateFromBackend(): Promise<TimerState | null> {
           status: data.status as TimerStatus,
           logs: Array.isArray(data.logs) ? data.logs : [],
           hasFiredOtNotification: data.hasFiredOtNotification || false,
+          lastNotifiedInterval: data.lastNotifiedInterval || 0,
         };
       }
     }
@@ -173,7 +176,15 @@ async function clearTimerStateFromBackend() {
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
-export function useWorkTimer(initialState: TimerState | null = null) {
+export function useWorkTimer(
+  initialState: TimerState | null = null,
+  userProfile: {
+    notificationsEnabled?: boolean;
+    notifyOnCompletion?: boolean;
+    notifyConstant?: boolean;
+    notifyInterval?: number;
+  } | null = null,
+) {
   const [state, setState] = useState<TimerState>(initialState || defaultState);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
@@ -233,6 +244,8 @@ export function useWorkTimer(initialState: TimerState | null = null) {
             : 0;
         const totalWorkNow = state.accumulatedWorkMs + currentWork;
 
+        // 1. Completion Overtime Notification
+        const shouldNotifyCompletion = userProfile ? userProfile.notifyOnCompletion ?? true : true;
         if (
           state.status === "working" &&
           !state.hasFiredOtNotification &&
@@ -240,8 +253,40 @@ export function useWorkTimer(initialState: TimerState | null = null) {
           totalWorkNow >= state.targetWorkMs
         ) {
           setState((prev) => ({ ...prev, hasFiredOtNotification: true }));
-          // Best-effort: ignore failure (we don't queue notifications)
-          fetch("/api/user/notify-overtime", { method: "POST" }).catch(() => {});
+          if (shouldNotifyCompletion) {
+            // Best-effort: ignore failure (we don't queue notifications)
+            fetch("/api/user/notify-overtime", { method: "POST" }).catch(() => {});
+          }
+        }
+
+        // 2. Periodic Progress Notification
+        const shouldNotifyConstant = userProfile ? userProfile.notifyConstant ?? false : false;
+        const notifyIntervalMins = userProfile ? userProfile.notifyInterval ?? 30 : 30;
+        const intervalMs = notifyIntervalMins * 60 * 1000;
+
+        if (
+          state.status === "working" &&
+          shouldNotifyConstant &&
+          state.targetWorkMs > 0 &&
+          totalWorkNow < state.targetWorkMs // Only until time completes
+        ) {
+          const currentMultiple = Math.floor(totalWorkNow / intervalMs);
+          const lastNotified = state.lastNotifiedInterval || 0;
+
+          if (currentMultiple > lastNotified) {
+            setState((prev) => ({ ...prev, lastNotifiedInterval: currentMultiple }));
+
+            // Trigger progress notification
+            const remaining = state.targetWorkMs - totalWorkNow;
+            fetch("/api/user/notify-progress", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                completedMs: totalWorkNow,
+                remainingMs: remaining,
+              }),
+            }).catch(() => {});
+          }
         }
       }, 1000);
     }
@@ -255,6 +300,8 @@ export function useWorkTimer(initialState: TimerState | null = null) {
     state.accumulatedWorkMs,
     state.targetWorkMs,
     state.hasFiredOtNotification,
+    state.lastNotifiedInterval,
+    userProfile,
   ]);
 
   // Auto-sync every 5 minutes to PostgreSQL
@@ -321,6 +368,8 @@ export function useWorkTimer(initialState: TimerState | null = null) {
         lastStatusChange: entryDate.getTime(),
         status: "working",
         logs: [{ type: "Start", time: entryDate.getTime() }],
+        hasFiredOtNotification: false,
+        lastNotifiedInterval: 0,
       };
 
       setState(newState);

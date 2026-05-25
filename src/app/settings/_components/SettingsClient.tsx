@@ -7,11 +7,9 @@ import {
   RiErrorWarningLine,
   RiCheckboxCircleLine,
   RiNotification3Line,
-  RiSaveLine,
   RiLockPasswordLine,
   RiEyeOffLine,
   RiEyeLine,
-  RiRefreshLine,
   RiTimerLine,
 } from "@remixicon/react";
 
@@ -20,6 +18,9 @@ export default function SettingsClient() {
 
   const [name, setName] = useState("");
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [notifyOnCompletion, setNotifyOnCompletion] = useState(true);
+  const [notifyConstant, setNotifyConstant] = useState(false);
+  const [notifyInterval, setNotifyInterval] = useState(30);
   const [timeFormat, setTimeFormat] = useState("12h");
   const [workHours, setWorkHours] = useState(8);
   const [workMinutes, setWorkMinutes] = useState(0);
@@ -52,6 +53,9 @@ export default function SettingsClient() {
           const data = await res.json();
           setName(data.name || "");
           setNotificationsEnabled(data.notificationsEnabled ?? true);
+          setNotifyOnCompletion(data.notifyOnCompletion ?? true);
+          setNotifyConstant(data.notifyConstant ?? false);
+          setNotifyInterval(data.notifyInterval ?? 30);
           setTimeFormat(data.timeFormat || "12h");
           setWorkHours(data.workHours ?? 8);
           setWorkMinutes(data.workMinutes ?? 0);
@@ -78,6 +82,9 @@ export default function SettingsClient() {
         body: JSON.stringify({
           name,
           notificationsEnabled,
+          notifyOnCompletion,
+          notifyConstant,
+          notifyInterval,
           timeFormat,
           workHours,
           workMinutes,
@@ -263,6 +270,106 @@ export default function SettingsClient() {
                 disabled={isSavingProfile}
               >
                 {isSavingProfile ? <span className="spinner"></span> : "Save Profile"}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Notification Preferences Card */}
+        <div className="glass-card settings-section animate-in delay-1">
+          <div className="settings-section-header">
+            <div className="title">
+              <RiNotification3Line size={20} />
+              <h2>Notification Preferences</h2>
+            </div>
+            <p>Choose when and how often you want to receive alerts.</p>
+          </div>
+
+          <form onSubmit={handleProfileSubmit}>
+            <div className="settings-section-body">
+              {/* Toggle 1: Notify on completion */}
+              <div className="settings-row">
+                <div className="settings-row-info">
+                  <label>Notify on Completion</label>
+                  <p>Send a desktop alert as soon as you complete your target work hours.</p>
+                </div>
+                <div className="settings-row-control" style={{ justifyContent: "flex-end" }}>
+                  <label className="toggle-wrapper" style={{ margin: 0 }}>
+                    <input
+                      type="checkbox"
+                      className="toggle-checkbox"
+                      checked={notifyOnCompletion}
+                      onChange={(e) => setNotifyOnCompletion(e.target.checked)}
+                      disabled={!notificationsEnabled}
+                    />
+                    <div className="toggle-slider" style={!notificationsEnabled ? { opacity: 0.5, cursor: "not-allowed" } : {}}></div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Toggle 2: Constant notifications */}
+              <div className="settings-row">
+                <div className="settings-row-info">
+                  <label>Periodic Progress Alerts</label>
+                  <p>Receive constant updates of completed work time and remaining hours until complete.</p>
+                </div>
+                <div className="settings-row-control" style={{ justifyContent: "flex-end" }}>
+                  <label className="toggle-wrapper" style={{ margin: 0 }}>
+                    <input
+                      type="checkbox"
+                      className="toggle-checkbox"
+                      checked={notifyConstant}
+                      onChange={(e) => setNotifyConstant(e.target.checked)}
+                      disabled={!notificationsEnabled}
+                    />
+                    <div className="toggle-slider" style={!notificationsEnabled ? { opacity: 0.5, cursor: "not-allowed" } : {}}></div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Select Option: Interval (Visible if Constant Notifications is checked) */}
+              {notifyConstant && (
+                <div className="settings-row animate-in">
+                  <div className="settings-row-info">
+                    <label>Alert Interval</label>
+                    <p>Choose how frequently you receive progress updates.</p>
+                  </div>
+                  <div className="settings-row-control">
+                    <select
+                      value={notifyInterval}
+                      onChange={(e) => setNotifyInterval(Number(e.target.value))}
+                      disabled={!notificationsEnabled}
+                      style={{
+                        padding: "10px 14px",
+                        borderRadius: "10px",
+                        border: "1px solid var(--card-border)",
+                        background: "var(--card-bg)",
+                        color: "var(--text-main)",
+                        fontSize: "0.95rem",
+                        width: "100%",
+                        maxWidth: "320px",
+                        cursor: "pointer",
+                        outline: "none",
+                        transition: "all 0.2s",
+                      }}
+                    >
+                      <option value={30}>30 minutes</option>
+                      <option value={60}>1 hour</option>
+                      <option value={90}>1.5 hours</option>
+                      <option value={120}>2 hours</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+            </div>
+            <div className="settings-card-footer">
+              <button
+                type="submit"
+                className="btn-primary"
+                disabled={isSavingProfile}
+              >
+                {isSavingProfile ? <span className="spinner"></span> : "Save Preferences"}
               </button>
             </div>
           </form>

@@ -35,6 +35,10 @@ interface UserProfile {
   workHours?: number;
   workMinutes?: number;
   breakMinutes?: number;
+  notificationsEnabled?: boolean;
+  notifyOnCompletion?: boolean;
+  notifyConstant?: boolean;
+  notifyInterval?: number;
 }
 
 interface DashboardClientProps {
@@ -609,7 +613,7 @@ export default function DashboardClient({
     updateSession,
     deleteSession,
     formatTime: ft,
-  } = useWorkTimer(initialTimerState);
+  } = useWorkTimer(initialTimerState, userProfile);
 
   const [workHours, setWorkHours] = useState(userProfile?.workHours ?? 8);
   const [workMinutes, setWorkMinutes] = useState(userProfile?.workMinutes ?? 0);
