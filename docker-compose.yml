@@ -7,9 +7,11 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_NOTIFICATION_APP_ID: app_HKKiWsalytaLP9Dd
-        NEXT_PUBLIC_NOTIFICATION_PUBLIC_KEY: sk_AvDKMijNzNLat_QY4tBGIiic15ZVob274wEzo8hsxJ4CGRXOp0E26LO9BuY5pJYO
+        NEXT_PUBLIC_NOTIFICATION_APP_ID: app_A963xUpNLxyPUdfL
+        NEXT_PUBLIC_NOTIFICATION_PUBLIC_KEY: sk_S-MZpCZlokYdGXX_YZPXw47x6bs5DEdvW7PkKhEKmNZOEbZah2WeVyQPlg1FQFEK
+        NOTIFICATION_SECRET_KEY: sk_4NpwecwOFQm0xmO947N6uphcfIyCHwYFgAPuoxie_jGAiy4GtkKaO8hVxVtJ-wzu
         NEXT_PUBLIC_NOTIFICATION_BASE_URL: https://vibemessage.sailorlabs.in/api
+        CRON_SECRET: wtt-cron-secret-change-in-production
     restart: always
     ports:
       - "3100:3100"
@@ -21,10 +23,11 @@ services:
       NEXTAUTH_URL: https://worktracker.sailorlabs.in/
       NEXTAUTH_SECRET: work-time-tracker-super-secret-key-change-in-production
       AUTH_TRUST_HOST: true
-      NEXT_PUBLIC_NOTIFICATION_APP_ID: app_HKKiWsalytaLP9Dd
-      NEXT_PUBLIC_NOTIFICATION_PUBLIC_KEY: sk_AvDKMijNzNLat_QY4tBGIiic15ZVob274wEzo8hsxJ4CGRXOp0E26LO9BuY5pJYO
-      NOTIFICATION_SECRET_KEY: sk_fAxYG808gSpbSRvvW2DhKBp_K4HOdtj3jKCDzRhBG31PZzNwIQlc1LOgWEkq1ohA
+      NEXT_PUBLIC_NOTIFICATION_APP_ID: app_A963xUpNLxyPUdfL
+      NEXT_PUBLIC_NOTIFICATION_PUBLIC_KEY: sk_S-MZpCZlokYdGXX_YZPXw47x6bs5DEdvW7PkKhEKmNZOEbZah2WeVyQPlg1FQFEK
+      NOTIFICATION_SECRET_KEY: sk_4NpwecwOFQm0xmO947N6uphcfIyCHwYFgAPuoxie_jGAiy4GtkKaO8hVxVtJ-wzu
       NEXT_PUBLIC_NOTIFICATION_BASE_URL: https://vibemessage.sailorlabs.in/api
+      CRON_SECRET: wtt-cron-secret-change-in-production
     # depends_on:
     #   - db
     networks:
