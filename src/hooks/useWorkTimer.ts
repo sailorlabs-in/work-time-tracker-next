@@ -191,6 +191,11 @@ export function useWorkTimer(
   const [isLoaded, setIsLoaded] = useState(!!initialState);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   // Load state: try backend first, then localStorage fallback
   useEffect(() => {
@@ -290,11 +295,11 @@ export function useWorkTimer(
   // Auto-sync every 5 minutes to PostgreSQL
   useEffect(() => {
     if (state.isActive) {
-      syncTimerStateToBackend(state);
+      syncTimerStateToBackend(stateRef.current);
       setLastSynced(new Date());
 
       syncIntervalRef.current = setInterval(() => {
-        syncTimerStateToBackend(state);
+        syncTimerStateToBackend(stateRef.current);
         setLastSynced(new Date());
       }, SYNC_INTERVAL_MS);
     }
@@ -362,11 +367,6 @@ export function useWorkTimer(
     },
     [],
   );
-
-  const stateRef = useRef(state);
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
 
   const punchToggle = useCallback((manualTimeMs?: number) => {
     const nowMs = Date.now();
