@@ -347,9 +347,15 @@ Expected Total Salary: ₹${calculationResults.expectedTotal}`;
         {/* Header */}
         <div className="day-modal-header" style={{ marginBottom: "16px" }}>
           <div className="day-modal-title-block">
-            <h2 className="day-modal-date" style={{ fontSize: "1.4rem", gap: "8px" }}>
+            <h2 className="day-modal-date" style={{ fontSize: "1.4rem", gap: "8px", alignItems: "center" }}>
               <RiCalculatorLine size={24} className="gradient-text" />
               Salary Calculator
+              <div className="tooltip-container">
+                <RiInformationLine size={16} style={{ color: "var(--text-muted)", opacity: 0.8 }} />
+                <span className="tooltip-text">
+                  We are not saving this modal's data in our database; this modal's data is securely saved in your local storage.
+                </span>
+              </div>
             </h2>
             <p className="mini-stat-label" style={{ textAlign: "left", marginTop: "2px" }}>
               Compute expected monthly earnings based on attendance &amp; overtime rules
