@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
 import DayDetailModal from "./DayDetailModal";
 import ManualEntryPanel from "./ManualEntryPanel";
+import SalaryCalculatorModal from "./SalaryCalculatorModal";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { RiWifiOffLine } from "@remixicon/react";
 
@@ -122,6 +123,7 @@ export default function CalendarClient({
   const [dataLoading, setDataLoading] = useState(false);
   const [dayModalDate, setDayModalDate] = useState<string | null>(null);
   const [showManualModal, setShowManualModal] = useState(false);
+  const [showSalaryModal, setShowSalaryModal] = useState(false);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const fetchedRef = useRef(false);
 
@@ -358,6 +360,15 @@ export default function CalendarClient({
             </div>
           </div>
           {/* Hide Manual Entry when offline or for admin views */}
+          {!adminUserId && (
+            <button
+              className="btn-add-record"
+              onClick={() => setShowSalaryModal(true)}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+            >
+              🧮 Salary Calculator
+            </button>
+          )}
           {!adminUserId && !isOffline && (
             <button
               className="btn-add-record"
@@ -550,6 +561,16 @@ export default function CalendarClient({
             />
           </div>
         </div>
+      )}
+
+      {/* Salary Calculator Modal */}
+      {showSalaryModal && (
+        <SalaryCalculatorModal
+          currentMonth={currentMonth}
+          events={events}
+          holidays={holidays}
+          onClose={() => setShowSalaryModal(false)}
+        />
       )}
     </main>
   );
