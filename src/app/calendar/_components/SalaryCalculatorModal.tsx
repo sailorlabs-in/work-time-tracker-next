@@ -7,7 +7,6 @@ import {
   RiClipboardLine,
   RiCheckLine,
   RiWallet3Line,
-  RiTimeLine,
   RiCalendarEventLine,
   RiInformationLine,
 } from "@remixicon/react";
@@ -38,7 +37,7 @@ function decryptSalary(encrypted: string): string {
       );
     }
     return decrypted;
-  } catch (err) {
+  } catch {
     return "";
   }
 }
@@ -143,27 +142,34 @@ export default function SalaryCalculatorModal({
 
   // ── Calculate Default Values from Calendar ────────────────
   const calendarDefaults = useMemo(() => {
-    if (!selectedMonth) return { extraOffs: 0, reducedHours: 0, overtime: 0, leaveDays: 0, leaveHours: 0 };
+    if (!selectedMonth) return { extraOffs: 0, reducedHours: 0, overtime: 0, absentDays: 0, insufficientHours: 0, insufficientDays: 0, totalPresentWorkingHours: 0 };
 
     const [year, month] = selectedMonth.split("-").map(Number);
-    const { sundays, offSaturdays, daysInMonth } = getMonthWeekendOffs(year, month);
+    const { daysInMonth } = getMonthWeekendOffs(year, month);
 
-    // 1. Extra offs / Holidays
     const monthHolidays = holidays.filter((h) => h.date.startsWith(selectedMonth));
-    const fullHolidays = monthHolidays.filter((h) => h.durationMinutes === null);
-    const partialHolidays = monthHolidays.filter((h) => h.durationMinutes !== null);
 
-    const defaultExtraOffs = fullHolidays.length;
+    // 1. Classify Holidays & Extra Offs / Hours
+    let defaultExtraOffs = 0;
+    let defaultReducedHours = 0;
 
-    // 2. Events with reduced work hours
-    const defaultReducedHours = partialHolidays.reduce(
-      (sum, h) => sum + (h.durationMinutes || 0) / 60,
-      0
-    );
+    monthHolidays.forEach((h) => {
+      const isHalfDay = h.durationMinutes === 240 || (h.name && h.name.toLowerCase().includes("half day"));
+      if (h.durationMinutes === null) {
+        defaultExtraOffs += 1.0;
+      } else if (isHalfDay) {
+        defaultExtraOffs += 0.5;
+      } else {
+        defaultReducedHours += (h.durationMinutes || 0) / 60;
+      }
+    });
 
-    // 3. Overtime & Leaves Daily Calculation
+    // 2. Overtime & Leaves Daily Calculation
     let defaultOvertimeHours = 0;
-    let defaultLeaveHours = 0;
+    let defaultAbsentDays = 0;
+    let defaultInsufficientHours = 0;
+    let defaultInsufficientDays = 0;
+    let totalPresentWorkingHours = 0;
 
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
@@ -173,7 +179,9 @@ export default function SalaryCalculatorModal({
 
       const isOffDay = dayOfWeek === 0 || (dayOfWeek === 6 && [1, 3, 5].includes(weekNumber));
       const holidayForDay = monthHolidays.find((h) => h.date.startsWith(dateStr));
+      
       const isFullHoliday = holidayForDay && holidayForDay.durationMinutes === null;
+      const isHalfHoliday = holidayForDay && (holidayForDay.durationMinutes === 240 || (holidayForDay.name && holidayForDay.name.toLowerCase().includes("half day")));
 
       // Find work log events for this day
       const dayEvents = events.filter((e) => e.start.startsWith(dateStr));
@@ -182,11 +190,22 @@ export default function SalaryCalculatorModal({
 
       const totalWorkMs = dayWorkEvents.reduce((sum, e) => {
         const start = new Date(e.start).getTime();
-        const end = e.end ? new Date(e.end).getTime() : Date.now();
+        const end = e.end ? new Date(e.end).getTime() : new Date(e.start).getTime();
         return sum + Math.max(0, end - start);
       }, 0);
 
       const totalWorkHours = totalWorkMs / 3600000;
+      totalPresentWorkingHours += totalWorkHours;
+
+      // Expected working hours on this day
+      let expectedHours = 8;
+      if (isOffDay || isFullHoliday) {
+        expectedHours = 0;
+      } else if (isHalfHoliday) {
+        expectedHours = 4;
+      } else if (holidayForDay && holidayForDay.durationMinutes !== null) {
+        expectedHours = Math.max(0, 8 - (holidayForDay.durationMinutes / 60));
+      }
 
       // ── Overtime calculation ──
       if (totalWorkMs > 60000) { // worked more than a minute
@@ -194,11 +213,7 @@ export default function SalaryCalculatorModal({
         if (isOffDay || isFullHoliday) {
           dayOvertimeMs = totalWorkMs;
         } else {
-          const reductionMinutes = holidayForDay && holidayForDay.durationMinutes !== null
-            ? holidayForDay.durationMinutes
-            : 0;
-          const requiredWorkMs = Math.max(0, (8 * 60 - reductionMinutes) * 60000);
-
+          const requiredWorkMs = expectedHours * 3600000;
           if (totalWorkMs > requiredWorkMs) {
             dayOvertimeMs = totalWorkMs - requiredWorkMs;
           }
@@ -210,19 +225,15 @@ export default function SalaryCalculatorModal({
         defaultOvertimeHours += roundedOtMin / 60;
       }
 
-      // ── Leave calculation ──
-      if (!isOffDay && !isFullHoliday) {
-        const reductionMinutes = holidayForDay && holidayForDay.durationMinutes !== null
-          ? holidayForDay.durationMinutes
-          : 0;
-        const requiredHours = 8 - (reductionMinutes / 60);
-
+      // ── Absent & Insufficient hours calculation ──
+      if (expectedHours > 0) {
         if (totalWorkMs === 0) {
-          // Absent on regular working day
-          defaultLeaveHours += requiredHours;
-        } else if (totalWorkHours < requiredHours && !hasActiveWork) {
-          // Worked less than required hours (excluding active timer)
-          defaultLeaveHours += (requiredHours - totalWorkHours);
+          // Absent on working day
+          defaultAbsentDays += isHalfHoliday ? 0.5 : 1.0;
+        } else if (totalWorkHours < expectedHours && !hasActiveWork) {
+          // Worked less than expected (excluding active timer)
+          defaultInsufficientHours += (expectedHours - totalWorkHours);
+          defaultInsufficientDays += 1;
         }
       }
     }
@@ -231,18 +242,22 @@ export default function SalaryCalculatorModal({
       extraOffs: defaultExtraOffs,
       reducedHours: defaultReducedHours,
       overtime: parseFloat(defaultOvertimeHours.toFixed(2)),
-      leaveDays: parseFloat((defaultLeaveHours / 8).toFixed(2)),
-      leaveHours: parseFloat(defaultLeaveHours.toFixed(2)),
+      absentDays: defaultAbsentDays,
+      insufficientHours: parseFloat(defaultInsufficientHours.toFixed(2)),
+      insufficientDays: defaultInsufficientDays,
+      totalPresentWorkingHours: parseFloat(totalPresentWorkingHours.toFixed(2)),
     };
   }, [selectedMonth, events, holidays]);
 
-  // Sync state with calculated defaults when month changes or load
+  // Sync state with calculated defaults when calendar defaults change
   useEffect(() => {
     setExtraOffs(calendarDefaults.extraOffs);
     setReducedHours(calendarDefaults.reducedHours);
     setExpectedOvertime(calendarDefaults.overtime);
-    setTakenLeave(leaveUnit === "days" ? calendarDefaults.leaveDays : calendarDefaults.leaveHours);
-  }, [calendarDefaults, selectedMonth, leaveUnit]);
+    setLeaveUnit("days");
+    setTakenLeave(calendarDefaults.absentDays);
+  }, [calendarDefaults]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Handle Leave Unit toggle without resetting user edits if they match old units
   const handleLeaveUnitChange = (newUnit: "days" | "hours") => {
@@ -259,7 +274,16 @@ export default function SalaryCalculatorModal({
   const calculationResults = useMemo(() => {
     const baseSalary = parseFloat(baseSalaryInput) || 0;
     if (baseSalary <= 0 || !selectedMonth) {
-      return { hourlySalary: 0, overtimeSalary: 0, expectedTotal: 0, workableDays: 0 };
+      return { 
+        hourlySalary: 0, 
+        overtimeSalary: 0, 
+        expectedTotal: 0, 
+        workableDays: 0, 
+        workableHours: 0,
+        dailySalary: 0,
+        extraLeavePay: 0,
+        leaveDeduction: 0,
+      };
     }
 
     const [year, month] = selectedMonth.split("-").map(Number);
@@ -267,52 +291,58 @@ export default function SalaryCalculatorModal({
 
     // Total Workable Days = Month days - Sundays - 1st/3rd/5th Saturdays - extraOffs
     const workableDays = Math.max(
-      1,
+      0.5,
       getMonthWeekendOffs(year, month).daysInMonth - sundays - offSaturdays - extraOffs
     );
 
     // Total workable hours = workableDays * 8 - reducedHours
     const workableHours = Math.max(1, workableDays * 8 - reducedHours);
 
-    // Hourly Salary
+    // Hourly Salary (N / C)
     const hourlySalary = baseSalary / workableHours;
 
-    // Daily Salary
+    // Daily Salary (N / workableDays)
     const dailySalary = baseSalary / workableDays;
 
-    // Overtime Pay
-    const overtimeSalary = expectedOvertime * hourlySalary;
+    // Overtime Pay (O = ROUND(N/C*L, 0))
+    const overtimeSalary = Math.round(hourlySalary * expectedOvertime);
 
-    // Taken leave in days
-    const leaveInDays = leaveUnit === "hours" ? takenLeave / 8 : takenLeave;
+    // Total leave taken in hours
+    const totalLeaveHours = leaveUnit === "days" ? takenLeave * 8 : takenLeave;
 
-    let leaveDeduction = 0;
-    let extraLeavePay = 0;
+    // Unused leave allowance (in hours, out of 8 hours / 1 day allowance)
+    const unusedLeaveHours = Math.max(0, 8 - totalLeaveHours);
 
-    if (leaveInDays === 0) {
-      // Unused paid leave: add 1 extra day salary
-      extraLeavePay = dailySalary;
-    } else if (leaveInDays <= 1) {
-      // 1 paid leave covers the leave taken. No extra day, no deduction.
-      leaveDeduction = 0;
-    } else {
-      // Taken leave > 1: deduct (leaveInDays - 1) days salary
-      leaveDeduction = (leaveInDays - 1) * dailySalary;
-    }
+    // Unpaid leave hours (exceeding 1-day/8-hour paid leave allowance)
+    const unpaidLeaveHours = Math.max(0, totalLeaveHours - 8);
 
-    const expectedTotal = baseSalary + extraLeavePay - leaveDeduction + overtimeSalary;
+    // Deduction Hours (M = unpaidLeaveHours + insufficientHours)
+    const deductionHours = unpaidLeaveHours + calendarDefaults.insufficientHours;
+
+    // Deduction Pay (P = ROUND(N/C*M, 0))
+    const leaveDeduction = Math.round(hourlySalary * deductionHours);
+
+    // Extra Leave Pay (pro-rated payout for the unused portion of the 1-day allowance)
+    const extraLeavePay = Math.round(dailySalary * (unusedLeaveHours / 8));
+
+    // Final Salary = N + O - P
+    const expectedTotal = baseSalary + extraLeavePay + overtimeSalary - leaveDeduction;
 
     return {
-      hourlySalary: Math.round(hourlySalary),
+      hourlySalary: parseFloat(hourlySalary.toFixed(2)),
       overtimeSalary: Math.round(overtimeSalary),
       expectedTotal: Math.round(expectedTotal),
       workableDays,
+      workableHours,
+      dailySalary: Math.round(dailySalary),
+      extraLeavePay: Math.round(extraLeavePay),
+      leaveDeduction: Math.round(leaveDeduction),
     };
-  }, [baseSalaryInput, selectedMonth, extraOffs, reducedHours, expectedOvertime, takenLeave, leaveUnit]);
+  }, [baseSalaryInput, selectedMonth, extraOffs, reducedHours, expectedOvertime, takenLeave, leaveUnit, calendarDefaults]);
 
   // Generate exact copy text requested by user
   const formattedOutputText = useMemo(() => {
-    return `Hourly Salary: ₹${calculationResults.hourlySalary}
+    return `Hourly Salary: ₹${calculationResults.hourlySalary.toFixed(2)}
 Total Overtime Salary: ₹${calculationResults.overtimeSalary}
 Expected Total Salary: ₹${calculationResults.expectedTotal}`;
   }, [calculationResults]);
@@ -337,6 +367,7 @@ Expected Total Salary: ₹${calculationResults.expectedTotal}`;
     return list;
   }, []);
 
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
@@ -353,7 +384,7 @@ Expected Total Salary: ₹${calculationResults.expectedTotal}`;
               <div className="tooltip-container">
                 <RiInformationLine size={16} style={{ color: "var(--text-muted)", opacity: 0.8 }} />
                 <span className="tooltip-text">
-                  We are not saving this modal's data in our database; this modal's data is securely saved in your local storage.
+                  We are not saving this modal&apos;s data in our database; this modal&apos;s data is securely saved in your local storage.
                 </span>
               </div>
             </h2>
@@ -432,8 +463,9 @@ Expected Total Salary: ₹${calculationResults.expectedTotal}`;
                 id="extraOffs"
                 min="0"
                 max="31"
+                step="0.5"
                 value={extraOffs}
-                onChange={(e) => setExtraOffs(Math.max(0, parseInt(e.target.value) || 0))}
+                onChange={(e) => setExtraOffs(Math.max(0, parseFloat(e.target.value) || 0))}
                 className="mono"
                 style={{ padding: "8px 12px", fontSize: "0.95rem" }}
               />
