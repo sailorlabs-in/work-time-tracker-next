@@ -81,6 +81,7 @@ interface CalendarEvent {
 interface CalendarClientProps {
   initialEvents: CalendarEvent[];
   initialHolidays?: Holiday[];
+  initialNotes?: DayNote[];
   adminUserId?: string;
   timeFormat?: string;
   workDurationMs?: number;
@@ -129,6 +130,7 @@ function loadCalendarCache(): CalendarCache | null {
 export default function CalendarClient({
   initialEvents,
   initialHolidays = [],
+  initialNotes = [],
   adminUserId,
   timeFormat,
   workDurationMs = 8 * 3600000,
@@ -139,7 +141,7 @@ export default function CalendarClient({
   const [logs, setLogs] = useState<WorkLog[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>(initialEvents);
   const [holidays, setHolidays] = useState<Holiday[]>(initialHolidays);
-  const [notes, setNotes] = useState<DayNote[]>([]);
+  const [notes, setNotes] = useState<DayNote[]>(initialNotes);
   const [dataLoading, setDataLoading] = useState(false);
   const [dayModalDate, setDayModalDate] = useState<string | null>(null);
   const [showManualModal, setShowManualModal] = useState(false);

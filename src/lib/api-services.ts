@@ -230,3 +230,39 @@ export async function getWorkLogs(
     return [];
   }
 }
+
+export async function getDayNotes(
+  userId: string,
+  startDate?: string,
+  endDate?: string,
+) {
+  try {
+    const where: Record<string, any> = { userId };
+
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        where.date = {
+          gte: start,
+          lte: end,
+        };
+      }
+    }
+
+    const notes = await prisma.dayNote.findMany({
+      where,
+      orderBy: { date: "asc" },
+    });
+
+    return notes.map((n) => ({
+      ...n,
+      date: n.date.toISOString(),
+      createdAt: n.createdAt.toISOString(),
+      updatedAt: n.updatedAt.toISOString(),
+    }));
+  } catch (error) {
+    console.error("Get day notes error:", error);
+    return [];
+  }
+}
