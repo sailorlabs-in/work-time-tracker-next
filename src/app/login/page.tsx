@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { vibeClient } from "@/lib/vibe-client";
+import { getAppName } from "@/lib/brand";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -29,13 +30,10 @@ export default function LoginPage() {
       if (result?.error) {
         setError("Invalid email or password");
       } else {
-        try {
-          if (vibeClient) {
-            await vibeClient.registerDevice({ externalUserId: email });
-          }
-        } catch (pushErr) {
-          console.error("Failed to register push notifications:", pushErr);
-          // Continue even if push registration fails
+        if (vibeClient) {
+          vibeClient.registerDevice({ externalUserId: email }).catch((pushErr) => {
+            console.error("Failed to register push notifications in background:", pushErr);
+          });
         }
         router.push("/dashboard");
         router.refresh();
@@ -53,7 +51,7 @@ export default function LoginPage() {
         <div className="auth-header">
           <div className="auth-icon">⏱</div>
           <h1>Welcome Back</h1>
-          <p className="auth-subtitle">Sign in to your WorkTracker account</p>
+          <p className="auth-subtitle">Sign in to your {getAppName()} account</p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">

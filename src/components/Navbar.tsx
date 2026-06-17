@@ -7,6 +7,7 @@ import { useState } from "react";
 import ThemeToggle from "./ThemeToggle";
 import { RiShieldStarLine } from "@remixicon/react";
 import { vibeClient } from "@/lib/vibe-client";
+import { getAppName } from "@/lib/brand";
 
 export default function Navbar() {
   const { data: session } = useSession();
@@ -20,7 +21,7 @@ export default function Navbar() {
       <div className="navbar-inner">
         <Link href="/dashboard" className="navbar-brand">
           <span className="brand-icon">⏱</span>
-          <span className="brand-text">WorkTracker</span>
+          <span className="brand-text">{getAppName()}</span>
         </Link>
 
         <div className="navbar-links">

@@ -1,7 +1,8 @@
 import SettingsClient from "./_components/SettingsClient";
+import { getAppName } from "@/lib/brand";
 
 export const metadata = {
-  title: "Settings - WorkTracker",
+  title: `Settings - ${getAppName()}`,
   description: "Manage your profile, password, and notification preferences.",
 };
 

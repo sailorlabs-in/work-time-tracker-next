@@ -2,9 +2,10 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getUserProfile } from "@/lib/api-services";
 import AdminClient from "./_components/AdminClient";
+import { getAppName } from "@/lib/brand";
 
 export const metadata = {
-  title: "Admin Panel | WorkTracker",
+  title: `Admin Panel | ${getAppName()}`,
 };
 
 export default async function AdminPage() {

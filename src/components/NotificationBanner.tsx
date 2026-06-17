@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { RiNotification3Line, RiCloseLine } from "@remixicon/react";
 import { useSession } from "next-auth/react";
 import { vibeClient } from "@/lib/vibe-client";
+import { getAppName } from "@/lib/brand";
 
 interface AppNotification {
   id: string;
@@ -49,7 +50,7 @@ export default function NotificationBanner() {
           Notification.permission === "granted" &&
           document.visibilityState !== "visible"
         ) {
-          new Notification(payload.title || "WorkTracker Alert", { 
+          new Notification(payload.title || `${getAppName()} Alert`, { 
             body: payload.body || payload.title 
           });
         }

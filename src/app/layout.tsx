@@ -7,6 +7,7 @@ import "./globals.scss";
 import Navbar from "@/components/Navbar";
 import NotificationBanner from "@/components/NotificationBanner";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
+import { getAppName } from "@/lib/brand";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -22,7 +23,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WorkTracker — Time Tracking Made Beautiful",
+  title: `${getAppName()} — Time Tracking Made Beautiful`,
   description:
     "Track your work hours, breaks, and productivity with a beautiful calendar view. Punch in, punch out, and see your progress.",
 };
