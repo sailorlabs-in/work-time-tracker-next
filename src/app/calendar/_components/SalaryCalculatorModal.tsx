@@ -190,7 +190,7 @@ export default function SalaryCalculatorModal({
 
       const totalWorkMs = dayWorkEvents.reduce((sum, e) => {
         const start = new Date(e.start).getTime();
-        const end = e.end ? new Date(e.end).getTime() : new Date(e.start).getTime();
+        const end = e.end ? new Date(e.end).getTime() : Date.now();
         return sum + Math.max(0, end - start);
       }, 0);
 

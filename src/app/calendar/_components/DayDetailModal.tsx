@@ -103,6 +103,48 @@ export default function DayDetailModal({
   );
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [isConfirmingClear, setIsConfirmingClear] = useState(false);
+
+  const executeClearDay = useCallback(async () => {
+    setErrorMsg("");
+    setSuccessMsg("");
+    setDeletingId("clear-day-action");
+
+    try {
+      const todayDateStr = new Date().toLocaleDateString("en-CA");
+      const isToday = date === todayDateStr;
+
+      const res = await fetch("/api/worklog/delete-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "clear-day",
+          date,
+          isToday,
+        }),
+      });
+
+      if (res.ok) {
+        setSuccessMsg(
+          isToday
+            ? "Completed sessions cleared."
+            : "All sessions for this day cleared."
+        );
+        setIsConfirmingClear(false);
+        onRefresh();
+        setTimeout(onClose, 900);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setErrorMsg(d.error || "Failed to clear day entries.");
+        setIsConfirmingClear(false);
+      }
+    } catch {
+      setErrorMsg("Network error. Please check your connection.");
+      setIsConfirmingClear(false);
+    } finally {
+      setDeletingId(null);
+    }
+  }, [date, onRefresh, onClose]);
 
   // ── Build timeline ──────────────────────────────────────────
 
@@ -160,6 +202,12 @@ export default function DayDetailModal({
   const isOffDay = dayOfWeek === 0 || (dayOfWeek === 6 && [1, 3, 5].includes(weekNumber));
 
   const isFullDayHoliday = holiday && holiday.durationMinutes === null;
+
+  const todayDateStr = new Date().toLocaleDateString("en-CA");
+  const isToday = date === todayDateStr;
+  const hasDeletableSessions = timeline.some(
+    (item) => !isToday || !item.isActive
+  );
 
   if (totalWork > 0) {
     if (isOffDay || isFullDayHoliday) {
@@ -482,6 +530,28 @@ export default function DayDetailModal({
           </div>
         )}
 
+        {/* Clear Day confirmation */}
+        {isConfirmingClear && !deletingId && (
+          <div className="dm-confirm-box animate-in">
+            <div className="dm-confirm-icon">
+              <RiDeleteBinLine size={20} />
+            </div>
+            <p className="dm-confirm-text">
+              {date === new Date().toLocaleDateString("en-CA")
+                ? "Are you sure you want to clear all completed sessions for today? Your active timer will not be affected."
+                : `Are you sure you want to clear all sessions for ${displayDate}?`}
+            </p>
+            <div className="dm-confirm-actions">
+              <button className="dm-btn-cancel" onClick={() => setIsConfirmingClear(false)}>
+                <RiCloseLine size={16} /> Cancel
+              </button>
+              <button className="dm-btn-confirm" onClick={executeClearDay}>
+                <RiDeleteBinLine size={16} /> Confirm Clear
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Timeline */}
         {timeline.length === 0 ? (
           <p className="day-modal-empty">No sessions recorded for this day.</p>
@@ -653,11 +723,36 @@ export default function DayDetailModal({
           </div>
         )}
 
-        {/* Footer hint */}
-        {timeline.length > 0 && !pendingDelete && !deletingId && (
-          <p className="dm-footer-hint">
-            <RiDeleteBinLine size={14} /> Click edit or delete to manage your sessions
-          </p>
+        {/* Footer actions */}
+        {timeline.length > 0 && !pendingDelete && !isConfirmingClear && !deletingId && (
+          <div className="day-modal-footer-actions" style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginTop: "16px",
+            borderTop: "1px solid var(--card-border)",
+            paddingTop: "12px"
+          }}>
+            <p className="dm-footer-hint" style={{ margin: 0 }}>
+              <RiDeleteBinLine size={14} /> Click edit or delete to manage your sessions
+            </p>
+            <button
+              onClick={() => setIsConfirmingClear(true)}
+              className="btn-danger"
+              disabled={!hasDeletableSessions}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "6px 12px",
+                fontSize: "0.8rem",
+                opacity: hasDeletableSessions ? 1 : 0.5,
+                cursor: hasDeletableSessions ? "pointer" : "not-allowed"
+              }}
+            >
+              <RiDeleteBinLine size={14} /> Clear Day Data
+            </button>
+          </div>
         )}
       </div>
     </div>

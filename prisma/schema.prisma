@@ -27,6 +27,7 @@ model User {
   timerState           TimerState?
   createdAt            DateTime    @default(now())
   autoStoppedAt        DateTime?   // set by nightly cron when timer is auto-stopped
+  sessionVersion       Int         @default(0)
 }
 
 model WorkLog {

@@ -1,8 +1,23 @@
 "use client";
 
-import { SessionProvider as NextAuthSessionProvider } from "next-auth/react";
-import { ReactNode } from "react";
+import { SessionProvider as NextAuthSessionProvider, useSession } from "next-auth/react";
+import { ReactNode, useEffect } from "react";
 import { Session } from "next-auth";
+
+function AuthRedirectHandler() {
+  const { status } = useSession();
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      const publicPaths = ["/login", "/register", "/"];
+      if (typeof window !== "undefined" && !publicPaths.includes(window.location.pathname)) {
+        window.location.href = "/login";
+      }
+    }
+  }, [status]);
+
+  return null;
+}
 
 export default function SessionProvider({ 
   children,
@@ -17,6 +32,7 @@ export default function SessionProvider({
       refetchOnWindowFocus={false} 
       refetchWhenOffline={false}
     >
+      <AuthRedirectHandler />
       {children}
     </NextAuthSessionProvider>
   );

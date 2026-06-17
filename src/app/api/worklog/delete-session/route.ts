@@ -115,8 +115,54 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, deletedLogId: logId });
     }
 
+    // ── CLEAR DAY ────────────────────────────────────────────────────────────
+    if (action === "clear-day") {
+      const { date, isToday } = body as {
+        action: "clear-day";
+        date: string;
+        isToday: boolean;
+      };
+
+      if (!date) {
+        return NextResponse.json({ error: "Missing date" }, { status: 400 });
+      }
+
+      const dayStart = new Date(`${date}T00:00:00`);
+      const dayEnd = new Date(`${date}T23:59:59.999`);
+
+      const whereClause: any = {
+        userId: session.user.id,
+        date: { gte: dayStart, lte: dayEnd },
+      };
+
+      if (isToday) {
+        whereClause.status = { not: "active" };
+      }
+
+      const { count } = await prisma.workLog.deleteMany({
+        where: whereClause,
+      });
+
+      if (!isToday) {
+        const timerState = await prisma.timerState.findUnique({
+          where: { userId: session.user.id },
+        });
+        if (timerState && timerState.startTime) {
+          const startTimeMs = Number(timerState.startTime);
+          const startDayStr = new Date(startTimeMs).toISOString().split("T")[0];
+          if (startDayStr === date) {
+            await prisma.timerState.delete({
+              where: { userId: session.user.id },
+            });
+          }
+        }
+      }
+
+      return NextResponse.json({ success: true, deletedCount: count });
+    }
+
     return NextResponse.json(
-      { error: "Invalid action. Use 'delete-break' or 'delete-work'." },
+      { error: "Invalid action. Use 'delete-break', 'delete-work' or 'clear-day'." },
       { status: 400 },
     );
   } catch (error) {
@@ -127,3 +173,4 @@ export async function POST(req: Request) {
     );
   }
 }
+
