@@ -25,6 +25,7 @@ export interface TimerState {
   status: TimerStatus;
   logs: TimerLog[];
   hasFiredOtNotification?: boolean;
+  lastNotifiedInterval?: number;
 }
 
 const defaultState: TimerState = {
@@ -38,6 +39,7 @@ const defaultState: TimerState = {
   status: "idle",
   logs: [],
   hasFiredOtNotification: false,
+  lastNotifiedInterval: 0,
 };
 
 export function formatTime(ms: number): string {
@@ -56,6 +58,49 @@ export function formatShortTime(ms: number): string {
   return `${h}h ${m}m`;
 }
 
+// ── Session Builder ──────────────────────────────────────────────────────────
+
+export interface SessionRow {
+  punchIn: number;
+  punchOut: number | null;
+  inLogIndex: number;
+  outLogIndex: number | null;
+}
+
+export function buildSessionRows(logs: TimerLog[], status: TimerStatus): SessionRow[] {
+  const sortedWithIndex = logs
+    .map((log, index) => ({ ...log, originalIndex: index }))
+    .sort((a, b) => a.time - b.time);
+
+  const rows: SessionRow[] = [];
+  let currentIn: { time: number; originalIndex: number } | null = null;
+
+  for (const log of sortedWithIndex) {
+    if (log.type === "Start" || log.type === "Punch In (Work)") {
+      currentIn = { time: log.time, originalIndex: log.originalIndex };
+    } else if (log.type === "Punch Out (Break)" && currentIn !== null) {
+      rows.push({
+        punchIn: currentIn.time,
+        punchOut: log.time,
+        inLogIndex: currentIn.originalIndex,
+        outLogIndex: log.originalIndex,
+      });
+      currentIn = null;
+    }
+  }
+
+  if (status === "working" && currentIn !== null) {
+    rows.push({
+      punchIn: currentIn.time,
+      punchOut: null,
+      inLogIndex: currentIn.originalIndex,
+      outLogIndex: null,
+    });
+  }
+
+  return rows;
+}
+
 // ── Offline-aware backend helpers ─────────────────────────────────────────────
 
 async function sendLogToBackend(
@@ -70,11 +115,14 @@ async function sendLogToBackend(
     totalHours,
   };
   try {
-    await fetch("/api/worklog", {
+    const res = await fetch("/api/worklog", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+    if (!res.ok) {
+      throw new Error(`Server error: ${res.status}`);
+    }
   } catch {
     // Offline — queue for later
     offlineQueue.enqueue("/api/worklog", "POST", body);
@@ -83,11 +131,14 @@ async function sendLogToBackend(
 
 async function syncTimerStateToBackend(state: TimerState) {
   try {
-    await fetch("/api/timer-sync", {
+    const res = await fetch("/api/timer-sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(state),
     });
+    if (!res.ok) {
+      throw new Error(`Server error: ${res.status}`);
+    }
   } catch {
     // Offline — queue (deduped: only keeps the latest timer-sync)
     offlineQueue.enqueue("/api/timer-sync", "POST", state as unknown as object);
@@ -111,6 +162,7 @@ async function loadTimerStateFromBackend(): Promise<TimerState | null> {
           status: data.status as TimerStatus,
           logs: Array.isArray(data.logs) ? data.logs : [],
           hasFiredOtNotification: data.hasFiredOtNotification || false,
+          lastNotifiedInterval: data.lastNotifiedInterval || 0,
         };
       }
     }
@@ -122,7 +174,10 @@ async function loadTimerStateFromBackend(): Promise<TimerState | null> {
 
 async function clearTimerStateFromBackend() {
   try {
-    await fetch("/api/timer-sync", { method: "DELETE" });
+    const res = await fetch("/api/timer-sync", { method: "DELETE" });
+    if (!res.ok) {
+      throw new Error(`Server error: ${res.status}`);
+    }
   } catch {
     offlineQueue.enqueue("/api/timer-sync", "DELETE");
   }
@@ -130,13 +185,26 @@ async function clearTimerStateFromBackend() {
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
-export function useWorkTimer(initialState: TimerState | null = null) {
+export function useWorkTimer(
+  initialState: TimerState | null = null,
+  userProfile: {
+    notificationsEnabled?: boolean;
+    notifyOnCompletion?: boolean;
+    notifyConstant?: boolean;
+    notifyInterval?: number;
+  } | null = null,
+) {
   const [state, setState] = useState<TimerState>(initialState || defaultState);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [isLoaded, setIsLoaded] = useState(!!initialState);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const stateRef = useRef(state);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   // Load state: try backend first, then localStorage fallback
   useEffect(() => {
@@ -190,6 +258,7 @@ export function useWorkTimer(initialState: TimerState | null = null) {
             : 0;
         const totalWorkNow = state.accumulatedWorkMs + currentWork;
 
+        // 1. Track completion state (cron handles the actual push notification)
         if (
           state.status === "working" &&
           !state.hasFiredOtNotification &&
@@ -197,8 +266,24 @@ export function useWorkTimer(initialState: TimerState | null = null) {
           totalWorkNow >= state.targetWorkMs
         ) {
           setState((prev) => ({ ...prev, hasFiredOtNotification: true }));
-          // Best-effort: ignore failure (we don't queue notifications)
-          fetch("/api/user/notify-overtime", { method: "POST" }).catch(() => {});
+        }
+
+        // 2. Track interval state (cron handles the actual push notification)
+        const notifyIntervalMins = userProfile ? userProfile.notifyInterval ?? 30 : 30;
+        const intervalMs = notifyIntervalMins * 60 * 1000;
+
+        if (
+          state.status === "working" &&
+          state.targetWorkMs > 0 &&
+          totalWorkNow < state.targetWorkMs // Only until time completes
+        ) {
+          const currentMultiple = Math.floor(totalWorkNow / intervalMs);
+          const lastNotified = state.lastNotifiedInterval || 0;
+
+          if (currentMultiple > lastNotified) {
+            // Update local state so DB sync keeps the cron up-to-date
+            setState((prev) => ({ ...prev, lastNotifiedInterval: currentMultiple }));
+          }
         }
       }, 1000);
     }
@@ -212,16 +297,18 @@ export function useWorkTimer(initialState: TimerState | null = null) {
     state.accumulatedWorkMs,
     state.targetWorkMs,
     state.hasFiredOtNotification,
+    state.lastNotifiedInterval,
+    userProfile,
   ]);
 
   // Auto-sync every 5 minutes to PostgreSQL
   useEffect(() => {
     if (state.isActive) {
-      syncTimerStateToBackend(state);
+      syncTimerStateToBackend(stateRef.current);
       setLastSynced(new Date());
 
       syncIntervalRef.current = setInterval(() => {
-        syncTimerStateToBackend(state);
+        syncTimerStateToBackend(stateRef.current);
         setLastSynced(new Date());
       }, SYNC_INTERVAL_MS);
     }
@@ -278,6 +365,8 @@ export function useWorkTimer(initialState: TimerState | null = null) {
         lastStatusChange: entryDate.getTime(),
         status: "working",
         logs: [{ type: "Start", time: entryDate.getTime() }],
+        hasFiredOtNotification: false,
+        lastNotifiedInterval: 0,
       };
 
       setState(newState);
@@ -287,11 +376,6 @@ export function useWorkTimer(initialState: TimerState | null = null) {
     },
     [],
   );
-
-  const stateRef = useRef(state);
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
 
   const punchToggle = useCallback((manualTimeMs?: number) => {
     const nowMs = Date.now();
@@ -502,9 +586,15 @@ export function useWorkTimer(initialState: TimerState | null = null) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(addBreakBody),
-      }).catch(() => {
-        offlineQueue.enqueue("/api/worklog/add-break", "POST", addBreakBody);
-      });
+      })
+        .then((res) => {
+          if (!res.ok) {
+            offlineQueue.enqueue("/api/worklog/add-break", "POST", addBreakBody);
+          }
+        })
+        .catch(() => {
+          offlineQueue.enqueue("/api/worklog/add-break", "POST", addBreakBody);
+        });
 
       setLastSynced(new Date());
       return { success: true };
@@ -569,6 +659,149 @@ export function useWorkTimer(initialState: TimerState | null = null) {
     resetDay,
     clearToday,
     terminatePreviousTimer,
+    updateSession: useCallback(
+      (index: number, newPunchIn: number, newPunchOut: number | null) => {
+        setState((prev) => {
+          const rows = buildSessionRows(prev.logs, prev.status);
+          const rowToEdit = rows[index];
+          if (!rowToEdit) return prev;
+
+          const newLogs = [...prev.logs];
+          newLogs[rowToEdit.inLogIndex] = {
+            ...newLogs[rowToEdit.inLogIndex],
+            time: newPunchIn,
+          };
+          if (rowToEdit.outLogIndex !== null && newPunchOut !== null) {
+            newLogs[rowToEdit.outLogIndex] = {
+              ...newLogs[rowToEdit.outLogIndex],
+              time: newPunchOut,
+            };
+          }
+
+          // Sort logs descending (latest first) as per useWorkTimer convention
+          newLogs.sort((a, b) => b.time - a.time);
+
+          // Recalculate accumulated times
+          const sortedAsc = [...newLogs].sort((a, b) => a.time - b.time);
+          let accWork = 0;
+          let accBreak = 0;
+          let lastOut: number | null = null;
+          let currentIn: number | null = null;
+
+          for (const log of sortedAsc) {
+            if (log.type === "Start" || log.type === "Punch In (Work)") {
+              currentIn = log.time;
+              if (lastOut !== null) {
+                accBreak += currentIn - lastOut;
+              }
+            } else if (log.type === "Punch Out (Break)" && currentIn !== null) {
+              accWork += log.time - currentIn;
+              lastOut = log.time;
+              currentIn = null;
+            }
+          }
+
+          // If the last session is ongoing, status remains 'working'
+          // and we only care about accumulated completed work.
+          // currentSessionWork will be added in the computed values.
+
+          const newState: TimerState = {
+            ...prev,
+            logs: newLogs,
+            accumulatedWorkMs: accWork,
+            accumulatedBreakMs: accBreak,
+            // If the edited row was the most recent one, update lastStatusChange
+            lastStatusChange:
+              index === rows.length - 1
+                ? (prev.status === "working" ? newPunchIn : (newPunchOut ?? prev.lastStatusChange))
+                : prev.lastStatusChange,
+          };
+
+          syncTimerStateToBackend(newState);
+          // Also sync to worklog table
+          fetch("/api/worklog/today/sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ logs: newLogs }),
+          })
+            .then((res) => {
+              if (!res.ok) {
+                offlineQueue.enqueue("/api/worklog/today/sync", "POST", { logs: newLogs });
+              }
+            })
+            .catch(() => {
+              offlineQueue.enqueue("/api/worklog/today/sync", "POST", { logs: newLogs });
+            });
+
+          return newState;
+        });
+      },
+      [],
+    ),
+    deleteSession: useCallback((index: number) => {
+      setState((prev) => {
+        const rows = buildSessionRows(prev.logs, prev.status);
+        const rowToDelete = rows[index];
+        if (!rowToDelete) return prev;
+
+        const newLogs = prev.logs.filter(
+          (_, i) =>
+            i !== rowToDelete.inLogIndex && i !== rowToDelete.outLogIndex,
+        );
+
+        // Recalculate accumulated times
+        const sortedAsc = [...newLogs].sort((a, b) => a.time - b.time);
+        let accWork = 0;
+        let accBreak = 0;
+        let lastOut: number | null = null;
+        let currentIn: number | null = null;
+
+        for (const log of sortedAsc) {
+          if (log.type === "Start" || log.type === "Punch In (Work)") {
+            currentIn = log.time;
+            if (lastOut !== null) {
+              accBreak += currentIn - lastOut;
+            }
+          } else if (log.type === "Punch Out (Break)" && currentIn !== null) {
+            accWork += log.time - currentIn;
+            lastOut = log.time;
+            currentIn = null;
+          }
+        }
+
+        const newState: TimerState = {
+          ...prev,
+          logs: newLogs,
+          accumulatedWorkMs: accWork,
+          accumulatedBreakMs: accBreak,
+        };
+
+        // If we deleted all logs, reset active state? Or just let it be empty?
+        if (newLogs.length === 0) {
+           newState.isActive = false;
+           newState.status = "idle";
+           newState.startTime = null;
+           newState.lastStatusChange = null;
+        }
+
+        syncTimerStateToBackend(newState);
+        fetch("/api/worklog/today/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ logs: newLogs }),
+        })
+          .then((res) => {
+            if (!res.ok) {
+              offlineQueue.enqueue("/api/worklog/today/sync", "POST", { logs: newLogs });
+            }
+          })
+          .catch(() => {
+            offlineQueue.enqueue("/api/worklog/today/sync", "POST", { logs: newLogs });
+          });
+
+        return newState;
+      });
+    }, []),
     formatTime,
     formatShortTime,
   };

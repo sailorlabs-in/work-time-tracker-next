@@ -26,6 +26,8 @@ export async function getTimerState(
         : null,
       status: timerState.status as TimerStatus,
       logs: timerState.logs as unknown as TimerLog[],
+      hasFiredOtNotification: timerState.hasFiredOtNotification,
+      lastNotifiedInterval: timerState.lastNotifiedInterval,
     };
   } catch (error) {
     console.error("Get timer state error:", error);
@@ -42,6 +44,10 @@ export async function getUserProfile(userId: string) {
         workHours: true,
         workMinutes: true,
         breakMinutes: true,
+        notificationsEnabled: true,
+        notifyOnCompletion: true,
+        notifyConstant: true,
+        notifyInterval: true,
       }
     });
     return user;
@@ -221,6 +227,42 @@ export async function getWorkLogs(
     return events;
   } catch (error) {
     console.error("Fetch logs error:", error);
+    return [];
+  }
+}
+
+export async function getDayNotes(
+  userId: string,
+  startDate?: string,
+  endDate?: string,
+) {
+  try {
+    const where: Record<string, any> = { userId };
+
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        where.date = {
+          gte: start,
+          lte: end,
+        };
+      }
+    }
+
+    const notes = await prisma.dayNote.findMany({
+      where,
+      orderBy: { date: "asc" },
+    });
+
+    return notes.map((n) => ({
+      ...n,
+      date: n.date.toISOString(),
+      createdAt: n.createdAt.toISOString(),
+      updatedAt: n.updatedAt.toISOString(),
+    }));
+  } catch (error) {
+    console.error("Get day notes error:", error);
     return [];
   }
 }

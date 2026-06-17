@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   RiBriefcaseLine,
   RiCupLine,
@@ -61,6 +62,7 @@ interface Props {
   timeFormat: string;
   workDurationMs?: number;
   holiday?: { name: string; durationMinutes: number | null };
+  note?: string;
   onClose: () => void;
   onRefresh: () => void;
 }
@@ -94,6 +96,7 @@ export default function DayDetailModal({
   timeFormat,
   workDurationMs = 8 * 3600000,
   holiday,
+  note,
   onClose,
   onRefresh,
 }: Props) {
@@ -103,6 +106,87 @@ export default function DayDetailModal({
   );
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [isConfirmingClear, setIsConfirmingClear] = useState(false);
+
+  // Notes state
+  const [localNote, setLocalNote] = useState(note || "");
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [isSavingNote, setIsSavingNote] = useState(false);
+
+  useEffect(() => {
+    setLocalNote(note || "");
+  }, [note]);
+
+  const handleSaveNote = async () => {
+    setErrorMsg("");
+    setSuccessMsg("");
+    setIsSavingNote(true);
+
+    try {
+      const res = await fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date,
+          note: localNote,
+        }),
+      });
+
+      if (res.ok) {
+        setSuccessMsg("Note saved successfully.");
+        setIsEditingNote(false);
+        onRefresh();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setErrorMsg(d.error || "Failed to save note.");
+      }
+    } catch {
+      setErrorMsg("Network error trying to save note.");
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
+
+  const executeClearDay = useCallback(async () => {
+    setErrorMsg("");
+    setSuccessMsg("");
+    setDeletingId("clear-day-action");
+
+    try {
+      const todayDateStr = new Date().toLocaleDateString("en-CA");
+      const isToday = date === todayDateStr;
+
+      const res = await fetch("/api/worklog/delete-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "clear-day",
+          date,
+          isToday,
+        }),
+      });
+
+      if (res.ok) {
+        setSuccessMsg(
+          isToday
+            ? "Completed sessions cleared."
+            : "All sessions for this day cleared."
+        );
+        setIsConfirmingClear(false);
+        onRefresh();
+        setTimeout(onClose, 900);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setErrorMsg(d.error || "Failed to clear day entries.");
+        setIsConfirmingClear(false);
+      }
+    } catch {
+      setErrorMsg("Network error. Please check your connection.");
+      setIsConfirmingClear(false);
+    } finally {
+      setDeletingId(null);
+    }
+  }, [date, onRefresh, onClose]);
 
   // ── Build timeline ──────────────────────────────────────────
 
@@ -160,6 +244,12 @@ export default function DayDetailModal({
   const isOffDay = dayOfWeek === 0 || (dayOfWeek === 6 && [1, 3, 5].includes(weekNumber));
 
   const isFullDayHoliday = holiday && holiday.durationMinutes === null;
+
+  const todayDateStr = new Date().toLocaleDateString("en-CA");
+  const isToday = date === todayDateStr;
+  const hasDeletableSessions = timeline.some(
+    (item) => !isToday || !item.isActive
+  );
 
   if (totalWork > 0) {
     if (isOffDay || isFullDayHoliday) {
@@ -378,7 +468,7 @@ export default function DayDetailModal({
         const d = await res.json().catch(() => ({}));
         setErrorMsg(d.error || "Failed to update session.");
       }
-    } catch (err) {
+    } catch {
       setErrorMsg("Network error trying to update session.");
     } finally {
       setDeletingId(null);
@@ -443,7 +533,8 @@ export default function DayDetailModal({
           </button>
         </div>
 
-        {/* Messages */}
+        <div className="day-modal-scroll-body">
+          {/* Messages */}
         {errorMsg && (
           <div className="dm-message dm-message-error">
             <RiErrorWarningLine className="dm-msg-icon" size={18} />
@@ -457,30 +548,96 @@ export default function DayDetailModal({
           </div>
         )}
 
-        {/* Confirmation dialog */}
-        {pendingDelete && !deletingId && (
-          <div className="dm-confirm-box animate-in">
-            <div className="dm-confirm-icon">
-              {pendingDelete.item.type === "break" ? (
-                <RiCupLine size={20} />
-              ) : (
-                <RiBriefcaseLine size={20} />
-              )}
-              <RiDeleteBinLine style={{ marginLeft: 4 }} size={20} />
-            </div>
-            <p className="dm-confirm-text">
-              {getConfirmMessage(pendingDelete.item)}
-            </p>
-            <div className="dm-confirm-actions">
-              <button className="dm-btn-cancel" onClick={handleCancel}>
-                <RiCloseLine size={16} /> Cancel
+
+
+        {/* Day Notes Section */}
+        <div className="day-modal-notes-section" style={{
+          marginTop: "12px",
+          marginBottom: "12px",
+          padding: "16px",
+          borderRadius: "var(--radius-md)",
+          background: "var(--slate-bg)",
+          border: "1px solid var(--card-border)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "10px"
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-main)", display: "flex", alignItems: "center", gap: "6px" }}>
+              📝 Day Note
+            </span>
+            {!isEditingNote && (
+              <button
+                onClick={() => setIsEditingNote(true)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--accent-primary)",
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  padding: 0
+                }}
+              >
+                {localNote ? "Edit Note" : "Add Note"}
               </button>
-              <button className="dm-btn-confirm" onClick={handleConfirm}>
-                <RiDeleteBinLine size={16} /> Confirm Delete
-              </button>
-            </div>
+            )}
           </div>
-        )}
+
+          {isEditingNote ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <textarea
+                value={localNote}
+                onChange={(e) => setLocalNote(e.target.value)}
+                placeholder="Add note for this day..."
+                style={{
+                  padding: "10px",
+                  fontSize: "0.85rem",
+                  minHeight: "70px",
+                  borderRadius: "6px",
+                  background: "var(--input-bg)",
+                  border: "1px solid var(--input-border)",
+                  color: "var(--text-main)",
+                  width: "100%",
+                  resize: "vertical",
+                  fontFamily: "inherit"
+                }}
+              />
+              <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                <button
+                  className="btn-secondary"
+                  style={{ padding: "4px 10px", fontSize: "0.75rem" }}
+                  onClick={() => {
+                    setLocalNote(note || "");
+                    setIsEditingNote(false);
+                  }}
+                  disabled={isSavingNote}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn-primary"
+                  style={{ padding: "4px 10px", fontSize: "0.75rem" }}
+                  onClick={handleSaveNote}
+                  disabled={isSavingNote}
+                >
+                  {isSavingNote ? "Saving..." : "Save Note"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p style={{
+              margin: 0,
+              fontSize: "0.85rem",
+              color: localNote ? "var(--text-secondary)" : "var(--text-dim)",
+              fontStyle: localNote ? "normal" : "italic",
+              lineHeight: 1.5,
+              whiteSpace: "pre-wrap"
+            }}>
+              {localNote || "No notes added for this day."}
+            </p>
+          )}
+        </div>
 
         {/* Timeline */}
         {timeline.length === 0 ? (
@@ -653,13 +810,135 @@ export default function DayDetailModal({
           </div>
         )}
 
-        {/* Footer hint */}
-        {timeline.length > 0 && !pendingDelete && !deletingId && (
-          <p className="dm-footer-hint">
-            <RiDeleteBinLine size={14} /> Click edit or delete to manage your sessions
-          </p>
+        {/* Footer actions */}
+        {timeline.length > 0 && !pendingDelete && !isConfirmingClear && !deletingId && (
+          <div className="day-modal-footer-actions" style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginTop: "16px",
+            borderTop: "1px solid var(--card-border)",
+            paddingTop: "12px"
+          }}>
+            <p className="dm-footer-hint" style={{ margin: 0 }}>
+              <RiDeleteBinLine size={14} /> Click edit or delete to manage your sessions
+            </p>
+            <button
+              onClick={() => setIsConfirmingClear(true)}
+              className="btn-danger"
+              disabled={!hasDeletableSessions}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "6px 12px",
+                fontSize: "0.8rem",
+                opacity: hasDeletableSessions ? 1 : 0.5,
+                cursor: hasDeletableSessions ? "pointer" : "not-allowed"
+              }}
+            >
+              <RiDeleteBinLine size={14} /> Clear Day Data
+            </button>
+          </div>
         )}
+        </div>
       </div>
+
+      {/* Delete / Merge confirmation modal */}
+      {pendingDelete && (
+        <ConfirmationModal
+          title={pendingDelete.item.type === "break" ? "Remove Break" : "Delete Session"}
+          message={getConfirmMessage(pendingDelete.item)}
+          confirmText={pendingDelete.item.type === "break" ? "Merge Sessions" : "Delete"}
+          confirmBtnClass="btn-danger"
+          onClose={handleCancel}
+          onConfirm={handleConfirm}
+          isLoading={!!deletingId}
+        />
+      )}
+
+      {/* Clear Day confirmation modal */}
+      {isConfirmingClear && (
+        <ConfirmationModal
+          title="Clear Day Data"
+          message={
+            date === new Date().toLocaleDateString("en-CA")
+              ? "Are you sure you want to clear all completed sessions for today? Your active timer will not be affected."
+              : `Are you sure you want to clear all sessions for ${displayDate}?`
+          }
+          confirmText="Clear Day"
+          confirmBtnClass="btn-danger"
+          onClose={() => setIsConfirmingClear(false)}
+          onConfirm={executeClearDay}
+          isLoading={deletingId === "clear-day-action"}
+        />
+      )}
     </div>
+  );
+}
+
+interface ConfirmationModalProps {
+  title: string;
+  message: string;
+  confirmText: string;
+  confirmBtnClass?: string;
+  onClose: () => void;
+  onConfirm: () => void;
+  isLoading?: boolean;
+}
+
+export function ConfirmationModal({
+  title,
+  message,
+  confirmText,
+  confirmBtnClass = "btn-danger",
+  onClose,
+  onConfirm,
+  isLoading = false,
+}: ConfirmationModalProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="modal-overlay" style={{ zIndex: 300 }} onClick={onClose}>
+      <div
+        className="modal-card animate-in"
+        style={{ maxWidth: "400px", padding: "24px" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header modal-header-centered" style={{ marginBottom: "16px" }}>
+          <h2>{title}</h2>
+        </div>
+        <div className="modal-body" style={{ textAlign: "center", padding: "10px 0" }}>
+          <p style={{ fontSize: "0.95rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+            {message}
+          </p>
+        </div>
+        <div className="modal-footer" style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={onClose}
+            disabled={isLoading}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className={confirmBtnClass}
+            onClick={onConfirm}
+            disabled={isLoading}
+          >
+            {isLoading ? "Processing..." : confirmText}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }

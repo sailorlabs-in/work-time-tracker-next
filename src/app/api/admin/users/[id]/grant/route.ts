@@ -23,7 +23,10 @@ export async function PUT(
 
     const updatedUser = await prisma.user.update({
       where: { id },
-      data: { isAdmin: true },
+      data: { 
+        isAdmin: true,
+        sessionVersion: { increment: 1 },
+      },
       select: { id: true, name: true, email: true, isAdmin: true },
     });
 

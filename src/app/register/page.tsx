@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { getAppName } from "@/lib/brand";
 
 function EyeIcon() {
   return (
@@ -112,7 +113,7 @@ export default function RegisterPage() {
         <div className="auth-header">
           <div className="auth-icon">🚀</div>
           <h1>Get Started</h1>
-          <p className="auth-subtitle">Create your WorkTracker account</p>
+          <p className="auth-subtitle">Create your {getAppName()} account</p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">

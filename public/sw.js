@@ -92,7 +92,8 @@ async function cacheFirst(request, cacheName) {
 
   try {
     const response = await fetch(request);
-    if (response.ok) {
+    // Only cache GET/HEAD requests
+    if (response.ok && (request.method === 'GET' || request.method === 'HEAD')) {
       cache.put(request, response.clone());
     }
     return response;
@@ -110,18 +111,21 @@ async function networkFirst(request, cacheName) {
 
   try {
     const response = await fetch(request);
-    if (response.ok) {
+    // Only cache GET/HEAD requests
+    if (response.ok && (request.method === 'GET' || request.method === 'HEAD')) {
       cache.put(request, response.clone());
     }
     return response;
   } catch {
-    // Network failed — serve from cache
-    const cached = await cache.match(request);
-    if (cached) return cached;
+    // Network failed — serve from cache (only for cacheable requests)
+    if (request.method === 'GET' || request.method === 'HEAD') {
+      const cached = await cache.match(request);
+      if (cached) return cached;
 
-    // No cache for this specific URL — try to serve the dashboard as app shell
-    const dashboardCached = await cache.match("/dashboard");
-    if (dashboardCached) return dashboardCached;
+      // No cache for this specific URL — try to serve the dashboard as app shell
+      const dashboardCached = await cache.match("/dashboard");
+      if (dashboardCached) return dashboardCached;
+    }
 
     return new Response(
       `<!DOCTYPE html>

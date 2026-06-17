@@ -53,7 +53,7 @@ self.addEventListener("push", (event) => {
               ...data.data,
             },
             requireInteraction: false,
-            tag: "fcm-clone-notification",
+            tag: "vibe-message-notification",
           };
 
           return self.registration.showNotification(title, options);

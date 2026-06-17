@@ -11,9 +11,9 @@ WORKDIR /app
 # Install dependencies based on the preferred package manager
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
 RUN \
-  if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
-  elif [ -f package-lock.json ]; then npm ci; \
-  elif [ -f pnpm-lock.yaml ]; then yarn global add pnpm && pnpm i; \
+  if [ -f yarn.lock ]; then yarn --frozen-lockfile --ignore-scripts; \
+  elif [ -f package-lock.json ]; then npm install --ignore-scripts; \
+  elif [ -f pnpm-lock.yaml ]; then yarn global add pnpm && pnpm i --ignore-scripts; \
   else echo "Lockfile not found." && exit 1; \
   fi
 
@@ -27,6 +27,15 @@ COPY . .
 # Learn more here: https://nextjs.org/telemetry
 # Uncomment the following line in case you want to disable telemetry during the build.
 # ENV NEXT_TELEMETRY_DISABLED 1
+
+# Set build-time environment variables for NEXT_PUBLIC_* variables
+ARG NEXT_PUBLIC_NOTIFICATION_APP_ID
+ARG NEXT_PUBLIC_NOTIFICATION_PUBLIC_KEY
+ARG NEXT_PUBLIC_NOTIFICATION_BASE_URL
+
+ENV NEXT_PUBLIC_NOTIFICATION_APP_ID=${NEXT_PUBLIC_NOTIFICATION_APP_ID}
+ENV NEXT_PUBLIC_NOTIFICATION_PUBLIC_KEY=${NEXT_PUBLIC_NOTIFICATION_PUBLIC_KEY}
+ENV NEXT_PUBLIC_NOTIFICATION_BASE_URL=${NEXT_PUBLIC_NOTIFICATION_BASE_URL}
 
 RUN npx prisma generate
 RUN npm run build

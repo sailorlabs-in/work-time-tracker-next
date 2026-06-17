@@ -1,3 +1,5 @@
+@use "./mixins" as *;
+
 /* ─── Reset ─── */
 *,
 *::before,
@@ -5,6 +7,8 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--slate-light) transparent;
 }
 
 html {
@@ -103,19 +107,28 @@ body {
    SCROLLBAR
    ═══════════════════════════════════════════════ */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--slate-light);
-  border-radius: 3px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--slate);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* ─── Global Utility Classes ─── */
+.glass-card {
+  @include glass-card;
 }

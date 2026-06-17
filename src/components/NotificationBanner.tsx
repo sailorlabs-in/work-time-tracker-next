@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { RiNotification3Line, RiCloseLine } from "@remixicon/react";
 import { useSession } from "next-auth/react";
 import { vibeClient } from "@/lib/vibe-client";
+import { getAppName } from "@/lib/brand";
 
 interface AppNotification {
   id: string;
@@ -13,6 +14,22 @@ interface AppNotification {
 export default function NotificationBanner() {
   const [toasts, setToasts] = useState<AppNotification[]>([]);
   const { status } = useSession();
+
+  useEffect(() => {
+    const handleLocalToast = (e: Event) => {
+      const customEvent = e as CustomEvent<{ message: string }>;
+      const newToast: AppNotification = {
+        id: Date.now().toString(),
+        message: customEvent.detail.message || "Action completed successfully!",
+      };
+      setToasts((prev) => [...prev, newToast]);
+    };
+
+    window.addEventListener("show-toast", handleLocalToast);
+    return () => {
+      window.removeEventListener("show-toast", handleLocalToast);
+    };
+  }, []);
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -33,7 +50,7 @@ export default function NotificationBanner() {
           Notification.permission === "granted" &&
           document.visibilityState !== "visible"
         ) {
-          new Notification(payload.title || "WorkTracker Alert", { 
+          new Notification(payload.title || `${getAppName()} Alert`, { 
             body: payload.body || payload.title 
           });
         }
