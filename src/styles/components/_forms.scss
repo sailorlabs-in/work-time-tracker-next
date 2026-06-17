@@ -31,13 +31,73 @@ input[type="date"] {
   width: 100%;
 }
 
-input:focus {
+textarea {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text-main);
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  font-family: inherit;
+  outline: none;
+  transition: all var(--transition);
+  width: 100%;
+}
+
+input:focus,
+textarea:focus {
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
-input::placeholder {
+input::placeholder,
+textarea::placeholder {
   color: var(--text-dim);
+}
+
+/* --- Notes Card --- */
+.notes-card {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notes-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.notes-header-icon {
+  color: var(--accent-primary);
+  flex-shrink: 0;
+}
+
+.notes-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-main);
+  flex: 1;
+}
+
+.notes-status {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.notes-body {
+  padding: 16px 20px 20px;
+}
+
+.notes-textarea {
+  min-height: 120px;
+  max-height: 340px;
+  resize: none;
+  line-height: 1.5;
 }
 
 /* ═══════════════════════════════════════════════

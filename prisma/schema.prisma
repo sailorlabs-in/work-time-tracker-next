@@ -28,6 +28,7 @@ model User {
   createdAt            DateTime    @default(now())
   autoStoppedAt        DateTime?   // set by nightly cron when timer is auto-stopped
   sessionVersion       Int         @default(0)
+  dayNotes             DayNote[]
 }
 
 model WorkLog {
@@ -87,3 +88,17 @@ model Holiday {
 
   @@index([date])
 }
+
+model DayNote {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime
+  note      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+

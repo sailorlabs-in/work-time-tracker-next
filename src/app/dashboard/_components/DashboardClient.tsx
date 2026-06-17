@@ -27,6 +27,7 @@ import {
   RiRefreshLine,
   RiAlertLine,
   RiEdit2Line,
+  RiFileTextLine,
 } from "@remixicon/react";
 import OfflineBanner from "@/components/OfflineBanner";
 
@@ -500,11 +501,13 @@ function EditSessionModal({
 function SessionPanel({
   logs,
   status,
+  currentTime,
   onEdit,
   onDelete,
 }: {
   logs: TimerLog[];
   status: TimerStatus;
+  currentTime: number;
   onEdit: (index: number) => void;
   onDelete: (index: number) => void;
 }) {
@@ -528,7 +531,7 @@ function SessionPanel({
           {rows.map((row, i) => {
             const durationMs = row.punchOut
               ? row.punchOut - row.punchIn
-              : Date.now() - row.punchIn;
+              : currentTime - row.punchIn;
             const h = Math.floor(durationMs / 3600000);
             const m = Math.floor((durationMs % 3600000) / 60000);
             const durationStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
@@ -601,6 +604,7 @@ export default function DashboardClient({
     remainingWork,
     remainingBreak,
     isOvertime,
+    currentTime,
     lastSynced,
     isLoaded,
     isStaleTimer,
@@ -643,6 +647,67 @@ export default function DashboardClient({
   const [editingSessionIdx, setEditingSessionIdx] = useState<number | null>(
     null,
   );
+
+  const [note, setNote] = useState("");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    async function fetchTodayNote() {
+      try {
+        const todayStr = new Date().toLocaleDateString("en-CA");
+        const res = await fetch(`/api/notes?date=${todayStr}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.note) {
+            setNote(data.note);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch today's note:", err);
+      }
+    }
+    fetchTodayNote();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, []);
+
+  const handleNoteChange = (newNote: string) => {
+    setNote(newNote);
+    setSaveStatus("saving");
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      const todayStr = new Date().toLocaleDateString("en-CA");
+      const body = { date: todayStr, note: newNote };
+
+      try {
+        const res = await fetch("/api/notes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        if (res.ok) {
+          setSaveStatus("saved");
+        } else {
+          throw new Error("Failed to save note on server");
+        }
+      } catch (err) {
+        console.error("Failed to save note:", err);
+        const offlineQueue = await import("@/lib/offlineQueue");
+        offlineQueue.enqueue("/api/notes", "POST", body);
+        setSaveStatus("saved");
+      }
+    }, 1000);
+  };
 
   useEffect(() => {
     const updateTime = () => {
@@ -1079,17 +1144,42 @@ export default function DashboardClient({
               </div>
             </div>
 
-            {/* RIGHT: Session panel */}
-            <SessionPanel
-              logs={state.logs}
-              status={state.status}
-              onEdit={(idx) => setEditingSessionIdx(idx)}
-              onDelete={(idx) => {
-                if (window.confirm("Are you sure you want to delete this session?")) {
-                  deleteSession(idx);
-                }
-              }}
-            />
+            {/* RIGHT: Session panel and Daily Note */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <SessionPanel
+                logs={state.logs}
+                status={state.status}
+                currentTime={currentTime}
+                onEdit={(idx) => setEditingSessionIdx(idx)}
+                onDelete={(idx) => {
+                  if (window.confirm("Are you sure you want to delete this session?")) {
+                    deleteSession(idx);
+                  }
+                }}
+              />
+
+              <div className="notes-card glass-card animate-in">
+                <div className="notes-header">
+                  <span className="notes-header-icon">
+                    <RiFileTextLine size={20} />
+                  </span>
+                  <span className="notes-title">Daily Note</span>
+                  <span className="notes-status">
+                    {saveStatus === "saving" && "Saving..."}
+                    {saveStatus === "saved" && "Saved"}
+                    {saveStatus === "error" && "Error saving"}
+                  </span>
+                </div>
+                <div className="notes-body">
+                  <textarea
+                    className="notes-textarea"
+                    placeholder="Add notes for today (e.g. took a 2 hr lunch break, worked on task X...)"
+                    value={note}
+                    onChange={(e) => handleNoteChange(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
