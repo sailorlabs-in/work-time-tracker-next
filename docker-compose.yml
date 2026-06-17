@@ -28,6 +28,7 @@ services:
       NOTIFICATION_SECRET_KEY: sk_4NpwecwOFQm0xmO947N6uphcfIyCHwYFgAPuoxie_jGAiy4GtkKaO8hVxVtJ-wzu
       NEXT_PUBLIC_NOTIFICATION_BASE_URL: https://vibemessage.sailorlabs.in/api
       CRON_SECRET: wtt-cron-secret-change-in-production
+      DATABASE_URL_BACKUP: postgresql://neondb_owner:npg_JnO25YdbTsWE@ep-polished-shadow-aoyssx1p-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
     # depends_on:
     #   - db
     networks:
