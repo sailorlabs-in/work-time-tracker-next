@@ -1,3 +1,5 @@
+@use "../base/mixins" as *;
+
 /* ═══════════════════════════════════════════════
    MODAL
    ═══════════════════════════════════════════════ */
@@ -15,12 +17,10 @@
 }
 
 .modal-card {
+  @include glass-card;
   width: 100%;
   max-width: 440px;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
   border-radius: var(--radius-xl);
-  padding: 32px;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   box-shadow: var(--shadow-card), var(--shadow-glow);
@@ -77,12 +77,11 @@
 
 /* ─── Manual Entry Modal STYLES ─── */
 .manual-entry-modal-card {
+  @include glass-card;
   width: 500px;
   max-width: 95vw;
   max-height: 90vh;
   overflow-y: auto;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
   border-radius: var(--radius-xl);
   padding: 24px;
   backdrop-filter: blur(24px);

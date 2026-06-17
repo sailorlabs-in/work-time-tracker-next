@@ -15,6 +15,9 @@ model User {
   password             String
   isAdmin              Boolean     @default(false)
   notificationsEnabled Boolean     @default(true)
+  notifyOnCompletion   Boolean     @default(true)
+  notifyConstant       Boolean     @default(false)
+  notifyInterval       Int         @default(30)
   timeFormat           String      @default("12h")
   workHours            Int         @default(8)
   workMinutes          Int         @default(0)
@@ -22,7 +25,8 @@ model User {
   workLogs             WorkLog[]
   notifications        Notification[]
   timerState           TimerState?
-  createdAt  DateTime    @default(now())
+  createdAt            DateTime    @default(now())
+  autoStoppedAt        DateTime?   // set by nightly cron when timer is auto-stopped
 }
 
 model WorkLog {
@@ -43,19 +47,21 @@ model WorkLog {
 }
 
 model TimerState {
-  id                 String   @id @default(cuid())
-  userId             String   @unique
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  isActive           Boolean  @default(false)
-  startTime          BigInt?
-  targetWorkMs       BigInt   @default(0)
-  targetBreakMs      BigInt   @default(0)
-  accumulatedWorkMs  BigInt   @default(0)
-  accumulatedBreakMs BigInt   @default(0)
-  lastStatusChange   BigInt?
-  status             String   @default("idle")
-  logs               Json     @default("[]")
-  updatedAt          DateTime @updatedAt
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isActive               Boolean  @default(false)
+  startTime              BigInt?
+  targetWorkMs           BigInt   @default(0)
+  targetBreakMs          BigInt   @default(0)
+  accumulatedWorkMs      BigInt   @default(0)
+  accumulatedBreakMs     BigInt   @default(0)
+  lastStatusChange       BigInt?
+  status                 String   @default("idle")
+  logs                   Json     @default("[]")
+  updatedAt              DateTime @updatedAt
+  hasFiredOtNotification Boolean  @default(false)
+  lastNotifiedInterval   Int      @default(0)
 }
 
 model Notification {

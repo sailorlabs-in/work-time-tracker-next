@@ -6,6 +6,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_NOTIFICATION_APP_ID: app_A963xUpNLxyPUdfL
+        NEXT_PUBLIC_NOTIFICATION_PUBLIC_KEY: sk_S-MZpCZlokYdGXX_YZPXw47x6bs5DEdvW7PkKhEKmNZOEbZah2WeVyQPlg1FQFEK
+        NOTIFICATION_SECRET_KEY: sk_4NpwecwOFQm0xmO947N6uphcfIyCHwYFgAPuoxie_jGAiy4GtkKaO8hVxVtJ-wzu
+        NEXT_PUBLIC_NOTIFICATION_BASE_URL: https://vibemessage.sailorlabs.in/api
+        CRON_SECRET: wtt-cron-secret-change-in-production
     restart: always
     ports:
       - "3100:3100"
@@ -13,10 +19,15 @@ services:
       - .env
     environment:
       # Use the service name "db" for the database host within the docker network
-      DATABASE_URL: postgresql://umangsailor:Umang6Sailor@192.168.1.3:5432/worktracker?schema=public
-      NEXTAUTH_URL: https://timer.umangsailor.com/
+      DATABASE_URL: postgresql://umangsailor:Umang6Sailor@192.168.1.2:5432/worktracker?schema=public
+      NEXTAUTH_URL: https://worktracker.sailorlabs.in/
       NEXTAUTH_SECRET: work-time-tracker-super-secret-key-change-in-production
       AUTH_TRUST_HOST: true
+      NEXT_PUBLIC_NOTIFICATION_APP_ID: app_A963xUpNLxyPUdfL
+      NEXT_PUBLIC_NOTIFICATION_PUBLIC_KEY: sk_S-MZpCZlokYdGXX_YZPXw47x6bs5DEdvW7PkKhEKmNZOEbZah2WeVyQPlg1FQFEK
+      NOTIFICATION_SECRET_KEY: sk_4NpwecwOFQm0xmO947N6uphcfIyCHwYFgAPuoxie_jGAiy4GtkKaO8hVxVtJ-wzu
+      NEXT_PUBLIC_NOTIFICATION_BASE_URL: https://vibemessage.sailorlabs.in/api
+      CRON_SECRET: wtt-cron-secret-change-in-production
     # depends_on:
     #   - db
     networks:

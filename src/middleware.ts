@@ -5,8 +5,8 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isAuthenticated = !!req.auth;
 
-  // Public routes
-  const publicRoutes = ["/login", "/register", "/api/auth"];
+  // Public routes — never require authentication
+  const publicRoutes = ["/login", "/register", "/api/auth", "/api/health", "/api/cron"];
   const isPublicRoute = publicRoutes.some((route) =>
     pathname.startsWith(route),
   );
@@ -19,5 +19,8 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Exclude: Next.js internals, static files, AND PWA assets (sw.js, manifest.json, icons/)
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.json|icons/).*)",
+  ],
 };

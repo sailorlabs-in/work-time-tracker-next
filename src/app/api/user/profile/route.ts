@@ -16,6 +16,9 @@ export async function GET() {
         name: true,
         email: true,
         notificationsEnabled: true,
+        notifyOnCompletion: true,
+        notifyConstant: true,
+        notifyInterval: true,
         timeFormat: true,
         workHours: true,
         workMinutes: true,
@@ -48,6 +51,9 @@ export async function PUT(req: Request) {
     const {
       name,
       notificationsEnabled,
+      notifyOnCompletion,
+      notifyConstant,
+      notifyInterval,
       timeFormat,
       workHours,
       workMinutes,
@@ -60,6 +66,12 @@ export async function PUT(req: Request) {
         name: name !== undefined ? name : undefined,
         notificationsEnabled:
           notificationsEnabled !== undefined ? notificationsEnabled : undefined,
+        notifyOnCompletion:
+          notifyOnCompletion !== undefined ? notifyOnCompletion : undefined,
+        notifyConstant:
+          notifyConstant !== undefined ? notifyConstant : undefined,
+        notifyInterval:
+          notifyInterval !== undefined ? notifyInterval : undefined,
         timeFormat: timeFormat !== undefined ? timeFormat : undefined,
         workHours: workHours !== undefined ? workHours : undefined,
         workMinutes: workMinutes !== undefined ? workMinutes : undefined,
@@ -70,6 +82,9 @@ export async function PUT(req: Request) {
         name: true,
         email: true,
         notificationsEnabled: true,
+        notifyOnCompletion: true,
+        notifyConstant: true,
+        notifyInterval: true,
         timeFormat: true,
         workHours: true,
         workMinutes: true,

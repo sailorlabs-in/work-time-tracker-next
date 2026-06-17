@@ -4,6 +4,9 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import dynamic from "next/dynamic";
 import DayDetailModal from "./DayDetailModal";
 import ManualEntryPanel from "./ManualEntryPanel";
+import SalaryCalculatorModal from "./SalaryCalculatorModal";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { RiWifiOffLine } from "@remixicon/react";
 
 const FullCalendar = dynamic(() => import("@fullcalendar/react"), {
   ssr: false,
@@ -21,6 +24,14 @@ const FullCalendar = dynamic(() => import("@fullcalendar/react"), {
 
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
+
+const CALENDAR_CACHE_KEY = "wtt_calendar_cache";
+
+interface CalendarCache {
+  events: CalendarEvent[];
+  holidays: Holiday[];
+  cachedAt: number;
+}
 
 interface Holiday {
   id: string;
@@ -76,22 +87,61 @@ function msFmt(ms: number): string {
   return `${h}hr ${m}min`;
 }
 
+function saveCalendarCache(events: CalendarEvent[], holidays: Holiday[]): void {
+  try {
+    const cache: CalendarCache = { events, holidays, cachedAt: Date.now() };
+    localStorage.setItem(CALENDAR_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // localStorage full — fail silently
+  }
+}
+
+function loadCalendarCache(): CalendarCache | null {
+  try {
+    const raw = localStorage.getItem(CALENDAR_CACHE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as CalendarCache;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Main Component ───────────────────────────────────────────
 export default function CalendarClient({
   initialEvents,
   initialHolidays = [],
   adminUserId,
   timeFormat,
-  workDurationMs = 8 * 3600000, // Fallback to 8 hrs if undefined
+  workDurationMs = 8 * 3600000,
 }: CalendarClientProps) {
+  const { isOnline, isServerReachable } = useOnlineStatus();
+  const isOffline = !isOnline || !isServerReachable;
+
   const [logs, setLogs] = useState<WorkLog[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>(initialEvents);
   const [holidays, setHolidays] = useState<Holiday[]>(initialHolidays);
   const [dataLoading, setDataLoading] = useState(false);
   const [dayModalDate, setDayModalDate] = useState<string | null>(null);
   const [showManualModal, setShowManualModal] = useState(false);
+  const [showSalaryModal, setShowSalaryModal] = useState(false);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const fetchedRef = useRef(false);
+
+  // On mount: if server returned empty data (offline SSR) try loading from cache
+  useEffect(() => {
+    if (initialEvents.length === 0) {
+      const cache = loadCalendarCache();
+      if (cache) {
+        setEvents(cache.events);
+        setHolidays(cache.holidays);
+        const extracted = cache.events
+          .filter((e) => e.extendedProps.type === "work")
+          .map((e) => e.extendedProps.log);
+        setLogs(Array.from(new Map(extracted.map((l) => [l.id, l])).values()));
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (initialEvents.length > 0 && logs.length === 0) {
@@ -128,6 +178,9 @@ export default function CalendarClient({
 
   const fetchLogs = useCallback(
     async (startDate?: string, endDate?: string) => {
+      // Skip network fetch entirely when offline
+      if (isOffline) return;
+
       try {
         setDataLoading(true);
         let url = adminUserId
@@ -149,8 +202,11 @@ export default function CalendarClient({
           fetch(holidayUrl),
         ]);
 
+        let fetchedEvents: CalendarEvent[] = events;
+        let fetchedHolidays: Holiday[] = holidays;
+
         if (res.ok) {
-          const fetchedEvents: CalendarEvent[] = await res.json();
+          fetchedEvents = await res.json();
           setEvents(fetchedEvents);
           const extracted = fetchedEvents
             .filter((e) => e.extendedProps.type === "work")
@@ -161,16 +217,20 @@ export default function CalendarClient({
         }
 
         if (holRes.ok) {
-          const fetchedHolidays: Holiday[] = await holRes.json();
+          fetchedHolidays = await holRes.json();
           setHolidays(fetchedHolidays);
         }
+
+        // Persist to cache for offline use
+        saveCalendarCache(fetchedEvents, fetchedHolidays);
       } catch (err) {
         console.error("Failed to fetch logs:", err);
       } finally {
         setDataLoading(false);
       }
     },
-    [adminUserId],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [adminUserId, isOffline],
   );
 
   const [currentMonth, setCurrentMonth] = useState<string>("");
@@ -179,10 +239,13 @@ export default function CalendarClient({
     const startObj = new Date(dateInfo.startStr);
     const endObj = new Date(dateInfo.endStr);
     const midPoint = new Date(startObj.getTime() + (endObj.getTime() - startObj.getTime()) / 2);
-    
+
     const yyyy = midPoint.getFullYear();
     const mm = String(midPoint.getMonth() + 1).padStart(2, "0");
     setCurrentMonth(`${yyyy}-${mm}`);
+
+    // Don't fetch when offline
+    if (isOffline) return;
 
     if (!fetchedRef.current) {
       fetchedRef.current = true;
@@ -194,10 +257,15 @@ export default function CalendarClient({
     fetchLogs(dateInfo.startStr, dateInfo.endStr);
   };
 
-  const handleDateClick = (arg: { dateStr: string }) =>
+  // Day/event click — disabled when offline
+  const handleDateClick = (arg: { dateStr: string }) => {
+    if (isOffline) return;
     setDayModalDate(arg.dateStr);
+  };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleEventClick = (info: any) => {
+    if (isOffline) return;
     const dateStr = (info.event.startStr as string).split("T")[0];
     setDayModalDate(dateStr);
   };
@@ -231,9 +299,9 @@ export default function CalendarClient({
     holidays.forEach((h) => {
       const dateObj = new Date(h.date);
       const y = dateObj.getFullYear();
-      const m = String(dateObj.getMonth() + 1).padStart(2, "0");
+      const mo = String(dateObj.getMonth() + 1).padStart(2, "0");
       const d = String(dateObj.getDate()).padStart(2, "0");
-      const localDateStr = `${y}-${m}-${d}`;
+      const localDateStr = `${y}-${mo}-${d}`;
       map[localDateStr] = h;
     });
     return map;
@@ -291,8 +359,17 @@ export default function CalendarClient({
               <span className="mini-stat-label">Avg / Day</span>
             </div>
           </div>
-          {/* Hide Manual Entry Button for Admins viewing other users */}
+          {/* Hide Manual Entry when offline or for admin views */}
           {!adminUserId && (
+            <button
+              className="btn-add-record"
+              onClick={() => setShowSalaryModal(true)}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+            >
+              🧮 Salary Calculator
+            </button>
+          )}
+          {!adminUserId && !isOffline && (
             <button
               className="btn-add-record"
               onClick={() => setShowManualModal(true)}
@@ -303,9 +380,19 @@ export default function CalendarClient({
         </div>
       </div>
 
+      {/* Offline notice */}
+      {isOffline && (
+        <div className="calendar-offline-notice">
+          <span className="calendar-offline-notice__icon">
+            <RiWifiOffLine size={15} />
+          </span>
+          No connection — showing last cached data. Navigation &amp; editing disabled.
+        </div>
+      )}
+
       {/* Full-width Calendar */}
       <div
-        className="glass-card calendar-wrapper animate-in"
+        className={`glass-card calendar-wrapper animate-in${isOffline ? " calendar-offline-mode" : ""}`}
         style={{ position: "relative" }}
       >
         {dataLoading && (
@@ -339,7 +426,7 @@ export default function CalendarClient({
             const dateStr = `${y}-${mo}-${d}`;
             const summary = dailySummaryMap[dateStr];
             const hol = holidaysMap[dateStr];
-            
+
             let overtimeMs = 0;
             let earlyMs = 0;
 
@@ -364,7 +451,7 @@ export default function CalendarClient({
                   overtimeMs = summary.workMs - effectiveWorkDurationMs;
                 } else if (
                   !summary.hasActive &&
-                  (applyEgCooldown 
+                  (applyEgCooldown
                     ? summary.workMs < effectiveWorkDurationMs - 30 * 60000
                     : summary.workMs < effectiveWorkDurationMs)
                 ) {
@@ -407,13 +494,13 @@ export default function CalendarClient({
                 )}
                 {hol && (
                   <div className="doc-holiday-wrapper">
-                    <div className={`doc-holiday ${hol.durationMinutes === null ? 'doc-holiday-full' : 'doc-holiday-partial'}`}>
-                    {hol.durationMinutes !== null && (
-                      <span>
-                        ({Math.floor(hol.durationMinutes / 60)}h {hol.durationMinutes % 60}m) 
-                      </span>
-                    )}
-                    {hol.name} 
+                    <div className={`doc-holiday ${hol.durationMinutes === null ? "doc-holiday-full" : "doc-holiday-partial"}`}>
+                      {hol.durationMinutes !== null && (
+                        <span>
+                          ({Math.floor(hol.durationMinutes / 60)}h {hol.durationMinutes % 60}m){" "}
+                        </span>
+                      )}
+                      {hol.name}
                     </div>
                   </div>
                 )}
@@ -431,8 +518,8 @@ export default function CalendarClient({
         />
       </div>
 
-      {/* Day Detail Modal (click on any day) */}
-      {dayModalDate && (
+      {/* Day Detail Modal — never shown when offline */}
+      {dayModalDate && !isOffline && (
         <DayDetailModal
           date={dayModalDate}
           events={events}
@@ -447,8 +534,8 @@ export default function CalendarClient({
         />
       )}
 
-      {/* Manual Past-Day Entry Modal */}
-      {showManualModal && (
+      {/* Manual Past-Day Entry Modal — never shown when offline */}
+      {showManualModal && !isOffline && (
         <div
           className="modal-overlay"
           onClick={() => setShowManualModal(false)}
@@ -474,6 +561,16 @@ export default function CalendarClient({
             />
           </div>
         </div>
+      )}
+
+      {/* Salary Calculator Modal */}
+      {showSalaryModal && (
+        <SalaryCalculatorModal
+          currentMonth={currentMonth}
+          events={events}
+          holidays={holidays}
+          onClose={() => setShowSalaryModal(false)}
+        />
       )}
     </main>
   );

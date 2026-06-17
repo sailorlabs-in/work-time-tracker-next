@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3100",
     "build": "next build",
+    "postbuild": "node scripts/copy-standalone.js",
     "start": "next start -p 3100",
     "lint": "eslint"
   },
@@ -23,7 +24,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "sass": "^1.97.3",
-    "vibe-message": "^1.1.2"
+    "vibe-message": "^1.1.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

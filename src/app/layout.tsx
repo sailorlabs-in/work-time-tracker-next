@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import { Poppins, JetBrains_Mono } from "next/font/google";
 import SessionProvider from "@/components/SessionProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { auth } from "@/lib/auth";
 import "./globals.scss";
 import Navbar from "@/components/Navbar";
 import NotificationBanner from "@/components/NotificationBanner";
+import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -39,11 +41,13 @@ const themeScript = `
 })();
 `;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await auth();
+
   return (
     <html
       lang="en"
@@ -53,11 +57,18 @@ export default function RootLayout({
       <head>
         {/* Synchronously sets data-theme before first paint — no flash */}
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        {/* PWA manifest + meta */}
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#7c3aed" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body>
-        <SessionProvider>
+        <SessionProvider session={session}>
           <ThemeProvider>
             <div className="app-shell">
+              <ServiceWorkerRegistrar />
               <Navbar />
               <NotificationBanner />
               {children}

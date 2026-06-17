@@ -136,6 +136,7 @@ export default function Navbar() {
                     }
                   } catch (pushErr) {
                     console.error("Failed to unregister push notifications:", pushErr);
+                    // Continue with sign out even if unregistration fails
                   }
                   signOut();
                 }}
