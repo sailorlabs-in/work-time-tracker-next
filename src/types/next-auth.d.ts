@@ -13,5 +13,15 @@ declare module "next-auth" {
   interface User {
     isAdmin?: boolean;
     notificationsEnabled?: boolean;
+    sessionVersion?: number;
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id?: string;
+    isAdmin?: boolean;
+    notificationsEnabled?: boolean;
+    sessionVersion?: number;
   }
 }

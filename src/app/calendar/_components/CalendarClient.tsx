@@ -316,12 +316,19 @@ export default function CalendarClient({
   useEffect(() => {
     if (!currentMonth) return;
     const daily: Record<string, number> = {};
-    logs.forEach((log) => {
-      if (log.date.startsWith(currentMonth)) {
-        const day = log.date.split("T")[0];
-        daily[day] = (daily[day] || 0) + (log.totalHours || 0);
+    
+    events.forEach((e) => {
+      if (e.extendedProps.type === "work" && e.start.startsWith(currentMonth)) {
+        const day = e.start.split("T")[0];
+        const startMs = new Date(e.start).getTime();
+        const endMs = e.end 
+          ? new Date(e.end).getTime() 
+          : (currentTime ? currentTime.getTime() : Date.now());
+        const durHours = Math.max(0, endMs - startMs) / 3600000;
+        daily[day] = (daily[day] || 0) + durHours;
       }
     });
+
     const totalHours = Object.values(daily).reduce((s, h) => s + h, 0);
     const totalDays = Object.keys(daily).length;
     setStats({
@@ -329,7 +336,7 @@ export default function CalendarClient({
       totalDaysWorked: totalDays,
       avgHoursPerDay: totalDays > 0 ? totalHours / totalDays : 0,
     });
-  }, [logs, currentMonth]);
+  }, [events, currentMonth, currentTime]);
 
   return (
     <main className="main-content calendar-page">

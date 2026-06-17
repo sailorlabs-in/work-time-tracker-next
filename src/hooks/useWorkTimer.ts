@@ -115,11 +115,14 @@ async function sendLogToBackend(
     totalHours,
   };
   try {
-    await fetch("/api/worklog", {
+    const res = await fetch("/api/worklog", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+    if (!res.ok) {
+      throw new Error(`Server error: ${res.status}`);
+    }
   } catch {
     // Offline — queue for later
     offlineQueue.enqueue("/api/worklog", "POST", body);
@@ -128,11 +131,14 @@ async function sendLogToBackend(
 
 async function syncTimerStateToBackend(state: TimerState) {
   try {
-    await fetch("/api/timer-sync", {
+    const res = await fetch("/api/timer-sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(state),
     });
+    if (!res.ok) {
+      throw new Error(`Server error: ${res.status}`);
+    }
   } catch {
     // Offline — queue (deduped: only keeps the latest timer-sync)
     offlineQueue.enqueue("/api/timer-sync", "POST", state as unknown as object);
@@ -168,7 +174,10 @@ async function loadTimerStateFromBackend(): Promise<TimerState | null> {
 
 async function clearTimerStateFromBackend() {
   try {
-    await fetch("/api/timer-sync", { method: "DELETE" });
+    const res = await fetch("/api/timer-sync", { method: "DELETE" });
+    if (!res.ok) {
+      throw new Error(`Server error: ${res.status}`);
+    }
   } catch {
     offlineQueue.enqueue("/api/timer-sync", "DELETE");
   }
@@ -577,9 +586,15 @@ export function useWorkTimer(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(addBreakBody),
-      }).catch(() => {
-        offlineQueue.enqueue("/api/worklog/add-break", "POST", addBreakBody);
-      });
+      })
+        .then((res) => {
+          if (!res.ok) {
+            offlineQueue.enqueue("/api/worklog/add-break", "POST", addBreakBody);
+          }
+        })
+        .catch(() => {
+          offlineQueue.enqueue("/api/worklog/add-break", "POST", addBreakBody);
+        });
 
       setLastSynced(new Date());
       return { success: true };
@@ -708,9 +723,15 @@ export function useWorkTimer(
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ logs: newLogs }),
-          }).catch(() => {
-            offlineQueue.enqueue("/api/worklog/today/sync", "POST", { logs: newLogs });
-          });
+          })
+            .then((res) => {
+              if (!res.ok) {
+                offlineQueue.enqueue("/api/worklog/today/sync", "POST", { logs: newLogs });
+              }
+            })
+            .catch(() => {
+              offlineQueue.enqueue("/api/worklog/today/sync", "POST", { logs: newLogs });
+            });
 
           return newState;
         });
@@ -768,9 +789,15 @@ export function useWorkTimer(
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ logs: newLogs }),
-        }).catch(() => {
-          offlineQueue.enqueue("/api/worklog/today/sync", "POST", { logs: newLogs });
-        });
+        })
+          .then((res) => {
+            if (!res.ok) {
+              offlineQueue.enqueue("/api/worklog/today/sync", "POST", { logs: newLogs });
+            }
+          })
+          .catch(() => {
+            offlineQueue.enqueue("/api/worklog/today/sync", "POST", { logs: newLogs });
+          });
 
         return newState;
       });
