@@ -30,6 +30,7 @@ import {
   RiFileTextLine,
 } from "@remixicon/react";
 import OfflineBanner from "@/components/OfflineBanner";
+import { ConfirmationModal } from "@/app/calendar/_components/DayDetailModal";
 
 interface UserProfile {
   timeFormat?: string;
@@ -647,6 +648,8 @@ export default function DashboardClient({
   const [editingSessionIdx, setEditingSessionIdx] = useState<number | null>(
     null,
   );
+  const [pendingDeleteSessionIdx, setPendingDeleteSessionIdx] = useState<number | null>(null);
+  const [isConfirmingClearToday, setIsConfirmingClearToday] = useState(false);
 
   const [note, setNote] = useState("");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -1124,15 +1127,7 @@ export default function DashboardClient({
                 </div>
                 <div className="danger-actions">
                   <button
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          "Are you sure you want to clear ALL work logs for today? This cannot be undone.",
-                        )
-                      ) {
-                        clearToday();
-                      }
-                    }}
+                    onClick={() => setIsConfirmingClearToday(true)}
                     className="btn-danger-outline"
                   >
                     <RiDeleteBinLine size={18} /> Clear Today
@@ -1151,11 +1146,7 @@ export default function DashboardClient({
                 status={state.status}
                 currentTime={currentTime}
                 onEdit={(idx) => setEditingSessionIdx(idx)}
-                onDelete={(idx) => {
-                  if (window.confirm("Are you sure you want to delete this session?")) {
-                    deleteSession(idx);
-                  }
-                }}
+                onDelete={(idx) => setPendingDeleteSessionIdx(idx)}
               />
 
               <div className="notes-card glass-card animate-in">
@@ -1183,6 +1174,36 @@ export default function DashboardClient({
           </div>
         )}
       </div>
+
+      {/* Confirmation Modal for delete session */}
+      {pendingDeleteSessionIdx !== null && (
+        <ConfirmationModal
+          title="Delete Session"
+          message={`Are you sure you want to delete session ${pendingDeleteSessionIdx + 1}?`}
+          confirmText="Delete"
+          confirmBtnClass="btn-danger"
+          onClose={() => setPendingDeleteSessionIdx(null)}
+          onConfirm={() => {
+            deleteSession(pendingDeleteSessionIdx);
+            setPendingDeleteSessionIdx(null);
+          }}
+        />
+      )}
+
+      {/* Confirmation Modal for clear all sessions */}
+      {isConfirmingClearToday && (
+        <ConfirmationModal
+          title="Clear Today's Logs"
+          message="Are you sure you want to clear ALL work logs for today? This cannot be undone."
+          confirmText="Clear Today"
+          confirmBtnClass="btn-danger"
+          onClose={() => setIsConfirmingClearToday(false)}
+          onConfirm={() => {
+            clearToday();
+            setIsConfirmingClearToday(false);
+          }}
+        />
+      )}
     </>
   );
 }

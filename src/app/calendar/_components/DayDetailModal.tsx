@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   RiBriefcaseLine,
   RiCupLine,
@@ -886,7 +887,7 @@ interface ConfirmationModalProps {
   isLoading?: boolean;
 }
 
-function ConfirmationModal({
+export function ConfirmationModal({
   title,
   message,
   confirmText,
@@ -895,8 +896,16 @@ function ConfirmationModal({
   onConfirm,
   isLoading = false,
 }: ConfirmationModalProps) {
-  return (
-    <div className="modal-overlay" style={{ zIndex: 300, background: "rgba(0, 0, 0, 0.4)", backdropFilter: "none", WebkitBackdropFilter: "none" }} onClick={onClose}>
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="modal-overlay" style={{ zIndex: 300 }} onClick={onClose}>
       <div
         className="modal-card animate-in"
         style={{ maxWidth: "400px", padding: "24px" }}
@@ -929,6 +938,7 @@ function ConfirmationModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
