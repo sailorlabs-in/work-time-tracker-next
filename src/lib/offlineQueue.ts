@@ -51,11 +51,14 @@ export function enqueue(
 ): void {
   const queue = readQueue();
 
-  // Dedup: for timer-sync POST, keep only the latest snapshot
+  // Dedup: for timer-sync POST and today/sync POST, keep only the latest snapshot
   const isTimerSync = url.includes("/api/timer-sync") && method === "POST";
-  const filtered = isTimerSync
-    ? queue.filter((i) => !(i.url.includes("/api/timer-sync") && i.method === "POST"))
-    : queue;
+  const isTodaySync = url.includes("/api/worklog/today/sync") && method === "POST";
+  const filtered = queue.filter((i) => {
+    if (isTimerSync && i.url.includes("/api/timer-sync") && i.method === "POST") return false;
+    if (isTodaySync && i.url.includes("/api/worklog/today/sync") && i.method === "POST") return false;
+    return true;
+  });
 
   filtered.push({ id: uuid(), url, method, body, createdAt: Date.now(), retryCount: 0 });
   writeQueue(filtered);

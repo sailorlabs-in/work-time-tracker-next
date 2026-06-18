@@ -64,6 +64,7 @@ model TimerState {
   updatedAt              DateTime @updatedAt
   hasFiredOtNotification Boolean  @default(false)
   lastNotifiedInterval   Int      @default(0)
+  lastUpdated            BigInt   @default(0)
 }
 
 model Notification {

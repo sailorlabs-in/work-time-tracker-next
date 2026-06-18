@@ -28,6 +28,7 @@ export async function getTimerState(
       logs: timerState.logs as unknown as TimerLog[],
       hasFiredOtNotification: timerState.hasFiredOtNotification,
       lastNotifiedInterval: timerState.lastNotifiedInterval,
+      lastUpdated: timerState.lastUpdated ? Number(timerState.lastUpdated) : 0,
     };
   } catch (error) {
     console.error("Get timer state error:", error);

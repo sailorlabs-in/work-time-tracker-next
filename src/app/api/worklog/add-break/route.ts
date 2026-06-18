@@ -56,76 +56,68 @@ export async function POST(req: Request) {
       );
     }
 
-    // Find the current active (open) work log
-    const activeLog = await prisma.workLog.findFirst({
-      where: { userId: session.user.id, status: "active", punchOut: null },
+    // Find any work log for this user today that contains/covers the break period.
+    // A work log contains the break if its punchIn is strictly before the breakStart,
+    // and its punchOut is either null (active) or strictly after breakEnd.
+    const targetLog = await prisma.workLog.findFirst({
+      where: {
+        userId: session.user.id,
+        punchIn: { lt: new Date(breakStart) },
+        OR: [
+          { punchOut: null },
+          { punchOut: { gt: new Date(breakEnd) } },
+        ],
+      },
       orderBy: { punchIn: "desc" },
     });
 
-    if (activeLog) {
-      // Validate: break must start after the active session's punch-in
-      if (breakStartMs <= activeLog.punchIn.getTime()) {
-        return NextResponse.json(
-          { error: "Break start must be after your current session punch-in." },
-          { status: 400 },
-        );
-      }
+    if (targetLog) {
+      const isCompleted = targetLog.status === "completed";
+      const originalPunchOut = targetLog.punchOut;
 
-      // Atomically: close existing log at breakStart, open new log at breakEnd
       await prisma.$transaction([
-        // 1. Close the active log at breakStart
+        // 1. Close/Update the target log to end at breakStart
         prisma.workLog.update({
-          where: { id: activeLog.id },
+          where: { id: targetLog.id },
           data: {
             punchOut: new Date(breakStart),
             totalHours: parseFloat(
               (
-                (breakStartMs - activeLog.punchIn.getTime()) /
+                (breakStartMs - targetLog.punchIn.getTime()) /
                 3_600_000
               ).toFixed(4),
             ),
             status: "completed",
           },
         }),
-        // 2. Create a new active log starting at breakEnd
+        // 2. Create a new log starting at breakEnd
         prisma.workLog.create({
           data: {
             userId: session.user.id,
-            date: activeLog.date,
+            date: targetLog.date,
             punchIn: new Date(breakEnd),
-            punchOut: null,
-            status: "active",
+            punchOut: originalPunchOut,
+            totalHours: originalPunchOut
+              ? parseFloat(
+                  (
+                    (originalPunchOut.getTime() - breakEndMs) /
+                    3_600_000
+                  ).toFixed(4),
+                )
+              : null,
+            status: isCompleted ? "completed" : "active",
           },
         }),
       ]);
 
-      return NextResponse.json({ success: true, mode: "split-active" });
+      return NextResponse.json({
+        success: true,
+        mode: isCompleted ? "split-completed" : "split-active",
+      });
     }
 
-    // No active session — insert as a standalone break between completed logs
-    // Find the most recent completed log for today
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
-    const recentLog = await prisma.workLog.findFirst({
-      where: {
-        userId: session.user.id,
-        status: "completed",
-        date: { gte: todayStart },
-      },
-      orderBy: { punchIn: "desc" },
-    });
-
-    if (!recentLog) {
-      return NextResponse.json(
-        { error: "No active or recent work session found for today." },
-        { status: 404 },
-      );
-    }
-
-    // Just note we can't do anything meaningful without a live session
     return NextResponse.json(
-      { error: "No active session — please add the break from the calendar." },
+      { error: "No overlapping work session found today to add a break." },
       { status: 400 },
     );
   } catch (error) {

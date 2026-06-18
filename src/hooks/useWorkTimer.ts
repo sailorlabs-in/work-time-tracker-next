@@ -26,6 +26,7 @@ export interface TimerState {
   logs: TimerLog[];
   hasFiredOtNotification?: boolean;
   lastNotifiedInterval?: number;
+  lastUpdated?: number;
 }
 
 const defaultState: TimerState = {
@@ -40,6 +41,7 @@ const defaultState: TimerState = {
   logs: [],
   hasFiredOtNotification: false,
   lastNotifiedInterval: 0,
+  lastUpdated: 0,
 };
 
 export function formatTime(ms: number): string {
@@ -150,19 +152,20 @@ async function loadTimerStateFromBackend(): Promise<TimerState | null> {
     const res = await fetch("/api/timer-sync");
     if (res.ok) {
       const data = await res.json();
-      if (data && data.isActive) {
+      if (data) {
         return {
-          isActive: data.isActive,
+          isActive: data.isActive || false,
           startTime: data.startTime,
-          targetWorkMs: data.targetWorkMs,
-          targetBreakMs: data.targetBreakMs,
-          accumulatedWorkMs: data.accumulatedWorkMs,
-          accumulatedBreakMs: data.accumulatedBreakMs,
+          targetWorkMs: data.targetWorkMs || 0,
+          targetBreakMs: data.targetBreakMs || 0,
+          accumulatedWorkMs: data.accumulatedWorkMs || 0,
+          accumulatedBreakMs: data.accumulatedBreakMs || 0,
           lastStatusChange: data.lastStatusChange,
-          status: data.status as TimerStatus,
+          status: (data.status as TimerStatus) || "idle",
           logs: Array.isArray(data.logs) ? data.logs : [],
           hasFiredOtNotification: data.hasFiredOtNotification || false,
           lastNotifiedInterval: data.lastNotifiedInterval || 0,
+          lastUpdated: data.lastUpdated || 0,
         };
       }
     }
@@ -206,23 +209,46 @@ export function useWorkTimer(
     stateRef.current = state;
   }, [state]);
 
-  // Load state: try backend first, then localStorage fallback
+  // Load state: try backend first, then localStorage fallback, using versioning comparison
   useEffect(() => {
     if (initialState) return;
     async function loadState() {
       const backendState = await loadTimerStateFromBackend();
-      if (backendState) {
+      let localState: TimerState | null = null;
+
+      const saved = localStorage.getItem("wtt_state_next");
+      if (saved) {
+        try {
+          localState = JSON.parse(saved);
+        } catch {
+          // Invalid state
+        }
+      }
+
+      if (backendState && localState) {
+        const backendUpdated = backendState.lastUpdated || 0;
+        const localUpdated = localState.lastUpdated || 0;
+
+        if (backendUpdated > localUpdated) {
+          // Server has newer data
+          setState(backendState);
+          localStorage.setItem("wtt_state_next", JSON.stringify(backendState));
+        } else if (localUpdated > backendUpdated) {
+          // Local has newer data
+          setState(localState);
+          syncTimerStateToBackend(localState);
+        } else {
+          // Equal or fallback
+          setState(backendState);
+        }
+      } else if (backendState) {
         setState(backendState);
         localStorage.setItem("wtt_state_next", JSON.stringify(backendState));
+      } else if (localState) {
+        setState(localState);
+        syncTimerStateToBackend(localState);
       } else {
-        const saved = localStorage.getItem("wtt_state_next");
-        if (saved) {
-          try {
-            setState(JSON.parse(saved));
-          } catch {
-            // Invalid state — leave as default
-          }
-        }
+        setState(defaultState);
       }
       setIsLoaded(true);
     }
@@ -367,6 +393,7 @@ export function useWorkTimer(
         logs: [{ type: "Start", time: entryDate.getTime() }],
         hasFiredOtNotification: false,
         lastNotifiedInterval: 0,
+        lastUpdated: Date.now(),
       };
 
       setState(newState);
@@ -417,6 +444,7 @@ export function useWorkTimer(
             { type: "Punch Out (Break)", time: effectiveNow },
             ...prev.logs,
           ].slice(0, 50),
+          lastUpdated: Date.now(),
         };
       } else if (prev.status === "break") {
         const sessionDuration =
@@ -434,6 +462,7 @@ export function useWorkTimer(
             { type: "Punch In (Work)", time: effectiveNow },
             ...prev.logs,
           ].slice(0, 50),
+          lastUpdated: Date.now(),
         };
       } else {
         return prev;
@@ -532,6 +561,14 @@ export function useWorkTimer(
       }
 
       const breakDuration = punchInMs - punchOutMs;
+      const prevVal = stateRef.current;
+      const newLogs = [
+        { type: "Punch Out (Break)", time: punchOutMs },
+        { type: "Punch In (Work)", time: punchInMs },
+        ...prevVal.logs,
+      ]
+        .sort((a, b) => b.time - a.time)
+        .slice(0, 50);
 
       setState((prev) => {
         const lastChange = prev.lastStatusChange ?? prev.startTime ?? 0;
@@ -557,43 +594,33 @@ export function useWorkTimer(
             ? lastChange + liveDeduction
             : prev.lastStatusChange;
 
-        const newLogs = [
-          { type: "Punch Out (Break)", time: punchOutMs },
-          { type: "Punch In (Work)", time: punchInMs },
-          ...prev.logs,
-        ]
-          .sort((a, b) => b.time - a.time)
-          .slice(0, 50);
-
         const newState: TimerState = {
           ...prev,
           accumulatedWorkMs: newAccWork,
           accumulatedBreakMs: newAccBreak,
           lastStatusChange: newLastStatusChange,
           logs: newLogs,
+          lastUpdated: Date.now(),
         };
 
         syncTimerStateToBackend(newState);
         return newState;
       });
 
-      // Fire-and-forget add-break DB sync (enqueue on failure)
-      const addBreakBody = {
-        breakStart: new Date(punchOutMs).toISOString(),
-        breakEnd: new Date(punchInMs).toISOString(),
-      };
-      fetch("/api/worklog/add-break", {
+      // Fire-and-forget today/sync DB sync (enqueue on failure)
+      const syncBody = { logs: newLogs };
+      fetch("/api/worklog/today/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(addBreakBody),
+        body: JSON.stringify(syncBody),
       })
         .then((res) => {
           if (!res.ok) {
-            offlineQueue.enqueue("/api/worklog/add-break", "POST", addBreakBody);
+            offlineQueue.enqueue("/api/worklog/today/sync", "POST", syncBody);
           }
         })
         .catch(() => {
-          offlineQueue.enqueue("/api/worklog/add-break", "POST", addBreakBody);
+          offlineQueue.enqueue("/api/worklog/today/sync", "POST", syncBody);
         });
 
       setLastSynced(new Date());
@@ -715,6 +742,7 @@ export function useWorkTimer(
               index === rows.length - 1
                 ? (prev.status === "working" ? newPunchIn : (newPunchOut ?? prev.lastStatusChange))
                 : prev.lastStatusChange,
+            lastUpdated: Date.now(),
           };
 
           syncTimerStateToBackend(newState);
@@ -774,6 +802,7 @@ export function useWorkTimer(
           logs: newLogs,
           accumulatedWorkMs: accWork,
           accumulatedBreakMs: accBreak,
+          lastUpdated: Date.now(),
         };
 
         // If we deleted all logs, reset active state? Or just let it be empty?

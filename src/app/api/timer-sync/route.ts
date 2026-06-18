@@ -44,6 +44,7 @@ export async function POST(req: Request) {
       logs,
       hasFiredOtNotification,
       lastNotifiedInterval,
+      lastUpdated,
     } = body;
 
     const timerState = await prisma.timerState.upsert({
@@ -60,6 +61,7 @@ export async function POST(req: Request) {
         logs: logs || [],
         hasFiredOtNotification: hasFiredOtNotification ?? false,
         lastNotifiedInterval: lastNotifiedInterval ?? 0,
+        lastUpdated: lastUpdated ? BigInt(lastUpdated) : BigInt(0),
       },
       create: {
         userId: session.user.id,
@@ -74,6 +76,7 @@ export async function POST(req: Request) {
         logs: logs || [],
         hasFiredOtNotification: hasFiredOtNotification ?? false,
         lastNotifiedInterval: lastNotifiedInterval ?? 0,
+        lastUpdated: lastUpdated ? BigInt(lastUpdated) : BigInt(0),
       },
     });
 
