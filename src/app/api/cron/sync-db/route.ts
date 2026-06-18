@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { prisma } from "@/lib/db";
 
 /**
@@ -35,13 +36,10 @@ export async function POST(req: Request) {
     const notifications = await prisma.notification.findMany();
 
     // 3. Connect to backup DB (DB 2)
-    prisma2 = new PrismaClient({
-      datasources: {
-        db: {
-          url: backupUrl,
-        },
-      },
-    });
+    // Prisma 7 removed datasources/datasourceUrl from PrismaClient constructor.
+    // Use the pg driver adapter to pass a dynamic connection URL.
+    const adapter = new PrismaPg({ connectionString: backupUrl });
+    prisma2 = new PrismaClient({ adapter });
 
     // 4. Run sync transaction on backup DB (DB 2)
     // Clear and insert inside a transaction to ensure atomic rollback on failure.
