@@ -34,6 +34,7 @@ export async function POST(req: Request) {
     const workLogs = await prisma.workLog.findMany();
     const timerStates = await prisma.timerState.findMany();
     const notifications = await prisma.notification.findMany();
+    const dayNotes = await prisma.dayNote.findMany();
 
     // 3. Connect to backup DB (DB 2)
     // Prisma 7 removed datasources/datasourceUrl from PrismaClient constructor.
@@ -48,6 +49,7 @@ export async function POST(req: Request) {
       prisma2.timerState.deleteMany(),
       prisma2.workLog.deleteMany(),
       prisma2.notification.deleteMany(),
+      prisma2.dayNote.deleteMany(),
       prisma2.user.deleteMany(),
       prisma2.holiday.deleteMany(),
 
@@ -57,10 +59,11 @@ export async function POST(req: Request) {
       prisma2.workLog.createMany({ data: workLogs }),
       prisma2.timerState.createMany({ data: timerStates as any[] }),
       prisma2.notification.createMany({ data: notifications }),
+      prisma2.dayNote.createMany({ data: dayNotes }),
     ]);
 
     console.log(
-      `[cron/sync-db] Daily DB sync completed successfully. Synced ${users.length} users, ${holidays.length} holidays, ${workLogs.length} work logs.`
+      `[cron/sync-db] Daily DB sync completed successfully. Synced ${users.length} users, ${holidays.length} holidays, ${workLogs.length} work logs, ${dayNotes.length} day notes.`
     );
 
     return NextResponse.json({
@@ -72,6 +75,7 @@ export async function POST(req: Request) {
         workLogs: workLogs.length,
         timerStates: timerStates.length,
         notifications: notifications.length,
+        dayNotes: dayNotes.length,
       },
     });
   } catch (error: any) {
