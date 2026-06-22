@@ -69,20 +69,19 @@ function fmtTime(ms: number, format: "12h" | "24h" = "12h"): string {
   });
 }
 
-function getOtCount(totalWorkMs: number): number {
-  const standardWorkMs = 8 * 3600000; // 8 hours
-  const firstOtThreshold = standardWorkMs + 45 * 60000; // 8h 45m
-  const subsequentOtInterval = 30 * 60000; // 30 mins
-
-  if (totalWorkMs <= firstOtThreshold) return 0;
-  return 1 + Math.floor((totalWorkMs - firstOtThreshold - 1) / subsequentOtInterval);
+function getOtMinutes(totalWorkMs: number): number {
+  const standardWorkMs = 8 * 3600000;
+  if (totalWorkMs < standardWorkMs) return 0;
+  const overtimeMin = Math.floor((totalWorkMs - standardWorkMs) / 60000);
+  if (overtimeMin < 30) return 0;
+  return Math.floor((overtimeMin - 15) / 30) * 30 + 30;
 }
 
-function getOtCreditStr(count: number): string {
-  if (count <= 0) return "1hr Overtime";
-  const totalMinutes = 60 + (count - 1) * 30;
-  const h = Math.floor(totalMinutes / 60);
-  const m = totalMinutes % 60;
+function formatOtMinutes(minutes: number): string {
+  if (minutes === 0) return "0 min";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}min Overtime`;
   if (m === 0) return `${h}hr Overtime`;
   return `${h}hr ${m} min Overtime`;
 }
@@ -729,7 +728,7 @@ export default function DashboardClient({
           }),
         );
         setEarlyLeaveTimeStr(
-          new Date(targetTime - 29 * 60000).toLocaleTimeString([], {
+          new Date(targetTime - 30 * 60000).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
             hour12: timeFormat === "12h",
@@ -738,13 +737,11 @@ export default function DashboardClient({
       }
 
       const standardWorkMs = 8 * 3600000;
-      const firstOtThreshold = standardWorkMs + 45 * 60000;
-      const subsequentOtInterval = 30 * 60000;
-
-      const currentCount = getOtCount(totalWork);
-      const nextOtThresholdMs = currentCount === 0 
-        ? firstOtThreshold + 60000 // 8h 46m
-        : firstOtThreshold + 60000 + currentCount * subsequentOtInterval;
+      const currentOtMin = getOtMinutes(totalWork);
+      const nextTierMin = currentOtMin === 0 ? 30 : currentOtMin + 30;
+      const nextOtThresholdMs = nextTierMin === 30 
+        ? standardWorkMs + 30 * 60000 
+        : standardWorkMs + (nextTierMin - 15) * 60000;
 
       const msUntilNextOt = nextOtThresholdMs - totalWork;
       const nextOtClockTime = now + msUntilNextOt;
@@ -1032,9 +1029,9 @@ export default function DashboardClient({
                   ) : (
                     <>
                       <span className="leave-time-label">
-                        {getOtCount(totalWork) === 0 
-                          ? `${getOtCreditStr(1)} starts at` 
-                          : `${getOtCreditStr(getOtCount(totalWork) + 1)} at`}
+                        {getOtMinutes(totalWork) === 0 
+                          ? `${formatOtMinutes(30)} starts at` 
+                          : `${formatOtMinutes(getOtMinutes(totalWork) + 30)} at`}
                       </span>
                       <span className="leave-time-value mono">
                         {nextOtTimeStr}

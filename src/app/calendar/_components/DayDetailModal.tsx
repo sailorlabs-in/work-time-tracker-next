@@ -256,28 +256,34 @@ export default function DayDetailModal({
       overtimeMs = totalWork;
     } else {
       let effectiveWorkDurationMs = workDurationMs;
-      let applyEgCooldown = true;
 
       if (holiday && holiday.durationMinutes !== null) {
         effectiveWorkDurationMs = Math.max(0, workDurationMs - (holiday.durationMinutes * 60000));
-        applyEgCooldown = false;
       }
 
       if (totalWork > effectiveWorkDurationMs) {
         overtimeMs = totalWork - effectiveWorkDurationMs;
-      } else if (
-        !hasActiveWork &&
-        (applyEgCooldown
-          ? totalWork < effectiveWorkDurationMs - 30 * 60000
-          : totalWork < effectiveWorkDurationMs)
-      ) {
+      } else if (!hasActiveWork && totalWork < effectiveWorkDurationMs) {
         earlyMs = effectiveWorkDurationMs - totalWork;
       }
     }
   }
 
-  if (overtimeMs <= 30 * 60000) {
+  // Rounding rules
+  const overtimeMin = Math.floor(overtimeMs / 60000);
+  if (overtimeMin >= 30) {
+    const roundedOvertimeMin = Math.floor((overtimeMin - 15) / 30) * 30 + 30;
+    overtimeMs = roundedOvertimeMin * 60000;
+  } else {
     overtimeMs = 0;
+  }
+
+  const earlyMin = Math.floor(earlyMs / 60000);
+  if (earlyMin > 30) {
+    const roundedEarlyMin = Math.floor((earlyMin - 15) / 30) * 30 + 30;
+    earlyMs = roundedEarlyMin * 60000;
+  } else {
+    earlyMs = 0;
   }
 
   // ── Delete handler ───────────────────────────────────────────

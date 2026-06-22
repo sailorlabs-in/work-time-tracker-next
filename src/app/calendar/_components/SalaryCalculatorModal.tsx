@@ -220,8 +220,10 @@ export default function SalaryCalculatorModal({
         }
 
         const dayOtMin = dayOvertimeMs / 60000;
-        // Overtime rounds up to nearest 30 mins
-        const roundedOtMin = dayOtMin > 0 ? Math.ceil(dayOtMin / 30) * 30 : 0;
+        let roundedOtMin = 0;
+        if (dayOtMin >= 30) {
+          roundedOtMin = Math.floor((dayOtMin - 15) / 30) * 30 + 30;
+        }
         defaultOvertimeHours += roundedOtMin / 60;
       }
 
@@ -232,8 +234,16 @@ export default function SalaryCalculatorModal({
           defaultAbsentDays += isHalfHoliday ? 0.5 : 1.0;
         } else if (totalWorkHours < expectedHours && !hasActiveWork) {
           // Worked less than expected (excluding active timer)
-          defaultInsufficientHours += (expectedHours - totalWorkHours);
-          defaultInsufficientDays += 1;
+          const earlyMin = (expectedHours - totalWorkHours) * 60;
+          let roundedEarlyMin = 0;
+          if (earlyMin > 30) {
+            roundedEarlyMin = Math.floor((earlyMin - 15) / 30) * 30 + 30;
+          }
+          const roundedEarlyHours = roundedEarlyMin / 60;
+          defaultInsufficientHours += roundedEarlyHours;
+          if (roundedEarlyHours > 0) {
+            defaultInsufficientDays += 1;
+          }
         }
       }
     }

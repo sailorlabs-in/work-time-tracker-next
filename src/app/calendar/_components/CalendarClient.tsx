@@ -506,31 +506,37 @@ export default function CalendarClient({
                 overtimeMs = summary.workMs;
               } else {
                 let effectiveWorkDurationMs = workDurationMs;
-                let applyEgCooldown = true;
 
                 if (hol && hol.durationMinutes !== null) {
                   effectiveWorkDurationMs = Math.max(
                     0,
                     workDurationMs - hol.durationMinutes * 60000,
                   );
-                  applyEgCooldown = false;
                 }
 
                 if (summary.workMs > effectiveWorkDurationMs) {
                   overtimeMs = summary.workMs - effectiveWorkDurationMs;
-                } else if (
-                  !summary.hasActive &&
-                  (applyEgCooldown
-                    ? summary.workMs < effectiveWorkDurationMs - 30 * 60000
-                    : summary.workMs < effectiveWorkDurationMs)
-                ) {
+                } else if (!summary.hasActive && summary.workMs < effectiveWorkDurationMs) {
                   earlyMs = effectiveWorkDurationMs - summary.workMs;
                 }
               }
             }
 
-            if (overtimeMs <= 30 * 60000) {
+            // Rounding rules
+            const overtimeMin = Math.floor(overtimeMs / 60000);
+            if (overtimeMin >= 30) {
+              const roundedOvertimeMin = Math.floor((overtimeMin - 15) / 30) * 30 + 30;
+              overtimeMs = roundedOvertimeMin * 60000;
+            } else {
               overtimeMs = 0;
+            }
+
+            const earlyMin = Math.floor(earlyMs / 60000);
+            if (earlyMin > 30) {
+              const roundedEarlyMin = Math.floor((earlyMin - 15) / 30) * 30 + 30;
+              earlyMs = roundedEarlyMin * 60000;
+            } else {
+              earlyMs = 0;
             }
 
             const note = notesMap[dateStr];
