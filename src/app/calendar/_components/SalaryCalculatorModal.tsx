@@ -78,6 +78,7 @@ interface Props {
   events: CalendarEvent[];
   holidays: Holiday[];
   onClose: () => void;
+  workDurationMs?: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -105,9 +106,18 @@ export default function SalaryCalculatorModal({
   events,
   holidays,
   onClose,
+  workDurationMs = 8 * 3600000,
 }: Props) {
+  const workDurationHours = workDurationMs / 3600000;
   // ── State Variables ────────────────────────────────────────
   const [baseSalaryInput, setBaseSalaryInput] = useState<string>("");
+  const [dailyDurationInput, setDailyDurationInput] = useState<string>(workDurationHours.toString());
+
+  useEffect(() => {
+    setDailyDurationInput(workDurationHours.toString());
+  }, [workDurationHours]);
+
+  const dailyDuration = parseFloat(dailyDurationInput) || workDurationHours || 8;
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonth);
   const [extraOffs, setExtraOffs] = useState<number>(0);
   const [reducedHours, setReducedHours] = useState<number>(0);
@@ -198,13 +208,13 @@ export default function SalaryCalculatorModal({
       totalPresentWorkingHours += totalWorkHours;
 
       // Expected working hours on this day
-      let expectedHours = 8;
+      let expectedHours = dailyDuration;
       if (isOffDay || isFullHoliday) {
         expectedHours = 0;
       } else if (isHalfHoliday) {
-        expectedHours = 4;
+        expectedHours = dailyDuration / 2;
       } else if (holidayForDay && holidayForDay.durationMinutes !== null) {
-        expectedHours = Math.max(0, 8 - (holidayForDay.durationMinutes / 60));
+        expectedHours = Math.max(0, dailyDuration - (holidayForDay.durationMinutes / 60));
       }
 
       // ── Overtime calculation ──
@@ -257,7 +267,7 @@ export default function SalaryCalculatorModal({
       insufficientDays: defaultInsufficientDays,
       totalPresentWorkingHours: parseFloat(totalPresentWorkingHours.toFixed(2)),
     };
-  }, [selectedMonth, events, holidays]);
+  }, [selectedMonth, events, holidays, dailyDuration]);
 
   // Sync state with calculated defaults when calendar defaults change
   useEffect(() => {
@@ -274,9 +284,9 @@ export default function SalaryCalculatorModal({
     setLeaveUnit(newUnit);
     // Convert current state value proportionately
     if (newUnit === "days" && leaveUnit === "hours") {
-      setTakenLeave(parseFloat((takenLeave / 8).toFixed(2)));
+      setTakenLeave(parseFloat((takenLeave / dailyDuration).toFixed(2)));
     } else if (newUnit === "hours" && leaveUnit === "days") {
-      setTakenLeave(parseFloat((takenLeave * 8).toFixed(2)));
+      setTakenLeave(parseFloat((takenLeave * dailyDuration).toFixed(2)));
     }
   };
 
@@ -305,8 +315,8 @@ export default function SalaryCalculatorModal({
       getMonthWeekendOffs(year, month).daysInMonth - sundays - offSaturdays - extraOffs
     );
 
-    // Total workable hours = workableDays * 8 - reducedHours
-    const workableHours = Math.max(1, workableDays * 8 - reducedHours);
+    // Total workable hours = workableDays * dailyDuration - reducedHours
+    const workableHours = Math.max(1, workableDays * dailyDuration - reducedHours);
 
     // Hourly Salary (N / C)
     const hourlySalary = baseSalary / workableHours;
@@ -318,13 +328,13 @@ export default function SalaryCalculatorModal({
     const overtimeSalary = Math.round(hourlySalary * expectedOvertime);
 
     // Total leave taken in hours
-    const totalLeaveHours = leaveUnit === "days" ? takenLeave * 8 : takenLeave;
+    const totalLeaveHours = leaveUnit === "days" ? takenLeave * dailyDuration : takenLeave;
 
-    // Unused leave allowance (in hours, out of 8 hours / 1 day allowance)
-    const unusedLeaveHours = Math.max(0, 8 - totalLeaveHours);
+    // Unused leave allowance (in hours, out of dailyDuration / 1 day allowance)
+    const unusedLeaveHours = Math.max(0, dailyDuration - totalLeaveHours);
 
-    // Unpaid leave hours (exceeding 1-day/8-hour paid leave allowance)
-    const unpaidLeaveHours = Math.max(0, totalLeaveHours - 8);
+    // Unpaid leave hours (exceeding 1-day paid leave allowance)
+    const unpaidLeaveHours = Math.max(0, totalLeaveHours - dailyDuration);
 
     // Deduction Hours (M = unpaidLeaveHours + insufficientHours)
     const deductionHours = unpaidLeaveHours + calendarDefaults.insufficientHours;
@@ -333,7 +343,7 @@ export default function SalaryCalculatorModal({
     const leaveDeduction = Math.round(hourlySalary * deductionHours);
 
     // Extra Leave Pay (pro-rated payout for the unused portion of the 1-day allowance)
-    const extraLeavePay = Math.round(dailySalary * (unusedLeaveHours / 8));
+    const extraLeavePay = Math.round(dailySalary * (unusedLeaveHours / dailyDuration));
 
     // Final Salary = N + O - P
     const expectedTotal = baseSalary + extraLeavePay + overtimeSalary - leaveDeduction;
@@ -348,7 +358,7 @@ export default function SalaryCalculatorModal({
       extraLeavePay: Math.round(extraLeavePay),
       leaveDeduction: Math.round(leaveDeduction),
     };
-  }, [baseSalaryInput, selectedMonth, extraOffs, reducedHours, expectedOvertime, takenLeave, leaveUnit, calendarDefaults]);
+  }, [baseSalaryInput, selectedMonth, extraOffs, reducedHours, expectedOvertime, takenLeave, leaveUnit, calendarDefaults, dailyDuration]);
 
   // Generate exact copy text requested by user
   const formattedOutputText = useMemo(() => {
@@ -410,27 +420,47 @@ Expected Total Salary: ₹${calculationResults.expectedTotal}`;
         {/* Form Body */}
         <div className="salary-calculator-body" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           
-          {/* Base Salary Input */}
-          <div className="form-group">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <label htmlFor="baseSalary" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <RiWallet3Line size={14} /> Base Monthly Salary (₹)
-              </label>
-              {showSavedNotification && (
-                <span style={{ fontSize: "0.75rem", color: "var(--success)", fontWeight: 600 }}>
-                  ✓ Saved securely
-                </span>
-              )}
+          {/* Base Salary & Daily Work Duration */}
+          <div className="dual-input">
+            <div className="input-half">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <label htmlFor="baseSalary" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <RiWallet3Line size={14} /> Base Monthly Salary (₹)
+                </label>
+                {showSavedNotification && (
+                  <span style={{ fontSize: "0.75rem", color: "var(--success)", fontWeight: 600 }}>
+                    ✓ Saved
+                  </span>
+                )}
+              </div>
+              <input
+                type="text"
+                id="baseSalary"
+                placeholder="e.g. 25000"
+                value={baseSalaryInput}
+                onChange={(e) => handleBaseSalaryChange(e.target.value)}
+                className="mono"
+                style={{ padding: "10px 14px", fontSize: "1.05rem" }}
+              />
             </div>
-            <input
-              type="text"
-              id="baseSalary"
-              placeholder="e.g. 25000"
-              value={baseSalaryInput}
-              onChange={(e) => handleBaseSalaryChange(e.target.value)}
-              className="mono"
-              style={{ padding: "10px 14px", fontSize: "1.05rem" }}
-            />
+
+            <div className="input-half">
+              <label htmlFor="dailyDuration" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                Daily Work Duration (Hrs)
+              </label>
+              <input
+                type="number"
+                id="dailyDuration"
+                min="1"
+                max="24"
+                step="0.5"
+                placeholder="e.g. 8"
+                value={dailyDurationInput}
+                onChange={(e) => setDailyDurationInput(e.target.value)}
+                className="mono"
+                style={{ padding: "10px 14px", fontSize: "1.05rem" }}
+              />
+            </div>
           </div>
 
           {/* Month / Year Selector */}
@@ -584,7 +614,7 @@ Expected Total Salary: ₹${calculationResults.expectedTotal}`;
           >
             <RiInformationLine size={18} style={{ color: "var(--accent-primary)", flexShrink: 0, marginTop: "2px" }} />
             <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.4, margin: 0 }}>
-              Calculations assume a standard 8-hour workday. A monthly paid leave allowance of 1 day is factored. Taking 0 leaves awards a 1-day bonus payout. Sundays and 1st, 3rd, and 5th Saturdays are company off-days.
+              Calculations assume a standard {dailyDuration}-hour workday. A monthly paid leave allowance of 1 day is factored. Taking 0 leaves awards a 1-day bonus payout. Sundays and 1st, 3rd, and 5th Saturdays are company off-days.
             </p>
           </div>
 
