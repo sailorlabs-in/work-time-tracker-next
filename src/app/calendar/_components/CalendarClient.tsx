@@ -654,6 +654,7 @@ export default function CalendarClient({
           events={events}
           holidays={holidays}
           onClose={() => setShowSalaryModal(false)}
+          workDurationMs={workDurationMs}
         />
       )}
     </main>
