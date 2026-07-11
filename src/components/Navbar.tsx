@@ -5,93 +5,113 @@ import { useSession, signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import ThemeToggle from "./ThemeToggle";
-import { RiShieldStarLine } from "@remixicon/react";
+import { RiCloseLine, RiMenuLine, RiShieldStarLine } from "@remixicon/react";
 import { vibeClient } from "@/lib/vibe-client";
 import { getAppName } from "@/lib/brand";
 
 export default function Navbar() {
   const { data: session } = useSession();
   const pathname = usePathname();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSignoutModalOpen, setIsSignoutModalOpen] = useState(false);
 
   if (!session) return null;
 
+  const closeMenu = () => setIsMenuOpen(false);
+  const openSignoutModal = () => {
+    closeMenu();
+    setIsSignoutModalOpen(true);
+  };
+
   return (
-    <nav className="navbar">
+    <nav className={`navbar ${isMenuOpen ? "navbar-menu-open" : ""}`}>
       <div className="navbar-inner">
-        <Link href="/dashboard" className="navbar-brand">
-          <span className="brand-icon">⏱</span>
+        <Link href="/dashboard" className="navbar-brand" onClick={closeMenu}>
+          <img src="/favicon.ico" alt="" className="brand-logo" />
           <span className="brand-text">{getAppName()}</span>
         </Link>
 
-        <div className="navbar-links">
-          <Link
-            href="/dashboard"
-            className={`nav-link ${pathname === "/dashboard" ? "active" : ""}`}
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <rect x="3" y="3" width="7" height="7" rx="1" />
-              <rect x="14" y="3" width="7" height="7" rx="1" />
-              <rect x="3" y="14" width="7" height="7" rx="1" />
-              <rect x="14" y="14" width="7" height="7" rx="1" />
-            </svg>
-            Dashboard
-          </Link>
-          <Link
-            href="/calendar"
-            className={`nav-link ${pathname === "/calendar" ? "active" : ""}`}
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <rect x="3" y="4" width="18" height="18" rx="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-            </svg>
-            Calendar
-          </Link>
-          {session.user?.isAdmin && (
-            <Link
-              href="/admin"
-              className={`nav-link ${pathname.startsWith("/admin") ? "active" : ""}`}
-            >
-              <RiShieldStarLine size={18} />
-              Admin
-            </Link>
-          )}
-        </div>
+        <button
+          type="button"
+          className="navbar-menu-btn"
+          onClick={() => setIsMenuOpen((open) => !open)}
+          aria-label={isMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+          aria-expanded={isMenuOpen}
+        >
+          {isMenuOpen ? <RiCloseLine size={22} /> : <RiMenuLine size={22} />}
+        </button>
 
-        <div className="navbar-right">
-          <ThemeToggle />
-          <div className="navbar-user">
+        <div className="navbar-menu-panel">
+          <div className="navbar-links">
             <Link
-              href="/settings"
-              className={`nav-link ${pathname === "/settings" ? "active" : ""}`}
-              style={{ display: "flex", alignItems: "center", gap: "6px" }}
+              href="/dashboard"
+              className={`nav-link ${pathname === "/dashboard" ? "active" : ""}`}
+              onClick={closeMenu}
             >
-              <span className="user-name">
-                {session.user?.name || session.user?.email}
-              </span>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+              </svg>
+              Dashboard
             </Link>
-            <button
-              onClick={() => setIsSignoutModalOpen(true)}
-              className="btn-logout"
+            <Link
+              href="/calendar"
+              className={`nav-link ${pathname === "/calendar" ? "active" : ""}`}
+              onClick={closeMenu}
             >
-              Sign out
-            </button>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              Calendar
+            </Link>
+            {session.user?.isAdmin && (
+              <Link
+                href="/admin"
+                className={`nav-link ${pathname.startsWith("/admin") ? "active" : ""}`}
+                onClick={closeMenu}
+              >
+                <RiShieldStarLine size={18} />
+                Admin
+              </Link>
+            )}
+          </div>
+
+          <div className="navbar-right">
+            <ThemeToggle />
+            <div className="navbar-user">
+              <Link
+                href="/settings"
+                className={`nav-link ${pathname === "/settings" ? "active" : ""}`}
+                style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                onClick={closeMenu}
+              >
+                <span className="user-name">
+                  {session.user?.name || session.user?.email}
+                </span>
+              </Link>
+              <button onClick={openSignoutModal} className="btn-logout">
+                Sign out
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -136,8 +156,10 @@ export default function Navbar() {
                       await vibeClient.unregisterDevice(email);
                     }
                   } catch (pushErr) {
-                    console.error("Failed to unregister push notifications:", pushErr);
-                    // Continue with sign out even if unregistration fails
+                    console.error(
+                      "Failed to unregister push notifications:",
+                      pushErr,
+                    );
                   }
                   signOut();
                 }}

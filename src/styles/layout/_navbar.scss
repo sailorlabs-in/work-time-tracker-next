@@ -2,14 +2,22 @@
    APP SHELL & NAVBAR
    ═══════════════════════════════════════════════ */
 .app-shell {
-  min-height: calc(100vh - 70px);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-main {
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
 }
 
 .navbar {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
   background: var(--navbar-bg);
   backdrop-filter: blur(20px);
@@ -19,6 +27,10 @@
   transition:
     background var(--transition),
     border-color var(--transition);
+}
+
+.navbar ~ .app-main {
+  padding-top: 64px;
 }
 
 .navbar-inner {
@@ -41,14 +53,28 @@
   font-weight: 700;
   font-size: 1.1rem;
   transition: opacity var(--transition);
+  min-width: 0;
+  flex-shrink: 0;
 }
 
 .navbar-brand:hover {
   opacity: 0.8;
 }
 
-.brand-icon {
-  font-size: 1.4rem;
+.navbar-menu-panel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+}
+
+.brand-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .brand-text {
@@ -56,11 +82,35 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .navbar-links {
   display: flex;
   gap: 4px;
+  min-width: 0;
+}
+
+.navbar-menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.navbar-menu-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: var(--accent-subtle);
 }
 
 .nav-link {
@@ -74,6 +124,8 @@
   font-size: 0.9rem;
   font-weight: 500;
   transition: all var(--transition);
+  min-height: 40px;
+  white-space: nowrap;
 }
 
 .nav-link:hover {
@@ -91,6 +143,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .navbar-user {
@@ -189,21 +242,137 @@
 
 @media (max-width: 768px) {
   .navbar-inner {
+    position: relative;
+    height: 64px;
     padding: 0 16px;
+    gap: 12px;
+  }
+
+  .navbar-brand {
+    flex: 1 1 auto;
+    max-width: calc(100% - 56px);
+  }
+
+  .navbar-menu-btn {
+    display: inline-flex;
+  }
+
+  .navbar-menu-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 16px;
+    right: 16px;
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px;
+    border: 1px solid var(--navbar-border);
+    border-radius: var(--radius-md);
+    background: var(--card-bg);
+    box-shadow: var(--shadow-card);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .navbar-menu-open .navbar-menu-panel {
+    display: flex;
+  }
+
+  .navbar-links,
+  .navbar-right {
+    width: 100%;
+  }
+
+  .navbar-links {
+    flex-direction: column;
+  }
+
+  .navbar-right {
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--card-border);
+  }
+
+  .navbar-links .nav-link {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .navbar-user {
+    flex: 1;
+    justify-content: flex-end;
   }
 
   .user-name {
-    display: none;
+    display: inline;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .main-content {
+    padding: 24px 16px;
   }
 }
 
 @media (max-width: 480px) {
-  .navbar-links {
-    gap: 2px;
+  .navbar-inner {
+    padding-inline: 12px;
   }
 
-  .nav-link svg,
-  .nav-link i {
-    display: none;
+  .navbar-brand {
+    max-width: calc(100% - 52px);
+    font-size: 1rem;
+  }
+
+  .navbar-links {
+    left: 12px;
+    right: 12px;
+  }
+
+  .navbar-menu-panel {
+    left: 12px;
+    right: 12px;
+  }
+
+  .navbar-right,
+  .navbar-user {
+    left: 12px;
+    right: 12px;
+    flex-direction: column;
+  }
+
+  .nav-link {
+    padding: 8px 10px;
+    font-size: 0.86rem;
+  }
+
+  .theme-toggle {
+    width: max-content;
+    gap: 2px;
+    padding: 3px;
+  }
+
+  .theme-btn {
+    width: 26px;
+    height: 26px;
+  }
+
+  .btn-logout {
+    padding: 8px 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .brand-text {
+    max-width: 120px;
+  }
+
+  .btn-logout {
+    font-size: 0.72rem;
+    padding-inline: 8px;
   }
 }

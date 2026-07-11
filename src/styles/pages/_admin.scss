@@ -12,6 +12,20 @@
     margin-bottom: 24px;
     border-bottom: 1px solid var(--card-border);
     padding-bottom: 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.admin-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.admin-content {
+    min-width: 0;
+}
+
+.admin-content > .glass-card {
+    overflow-x: auto;
 }
 
 .tab-btn {
@@ -26,6 +40,7 @@
     gap: 6px;
     font-weight: 600;
     transition: all var(--transition);
+    white-space: nowrap;
 
     &:hover {
         background: var(--slate-bg);
@@ -111,5 +126,59 @@
 
     &:hover {
         background: var(--danger-bg);
+    }
+}
+
+.admin-content .session-table {
+    min-width: 640px;
+}
+
+.admin-calendar-view .main-content {
+    max-width: 100%;
+    padding: 0;
+}
+
+@media (max-width: 768px) {
+    .admin-header h1 {
+        font-size: 1.6rem;
+    }
+
+    .admin-tabs {
+        margin-inline: -16px;
+        padding-inline: 16px;
+    }
+
+    .tab-btn {
+        padding: 8px 12px;
+        font-size: 0.85rem;
+    }
+
+    .manage-holidays-form {
+        padding: 16px;
+
+        .holidays-form-row {
+            grid-template-columns: 1fr;
+            gap: 14px;
+        }
+
+        .duration-inputs {
+            flex-direction: column;
+
+            input {
+                width: 100%;
+            }
+        }
+
+        .form-actions {
+            .btn-primary {
+                width: 100%;
+            }
+        }
+    }
+}
+
+@media (max-width: 480px) {
+    .admin-content > .glass-card {
+        padding: 20px;
     }
 }

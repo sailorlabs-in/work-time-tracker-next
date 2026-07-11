@@ -262,10 +262,7 @@ function LatePunchInModal({ onClose, onSubmit }: LatePunchInModalProps) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal-card"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header-centered">
           <span className="modal-icon">
             <RiPlayCircleLine size={24} />
@@ -295,7 +292,8 @@ function LatePunchInModal({ onClose, onSubmit }: LatePunchInModalProps) {
               Cancel
             </button>
             <button type="submit" className="btn-punch-in">
-              <RiPlayFill size={18} />Start time
+              <RiPlayFill size={18} />
+              Start time
             </button>
           </div>
         </form>
@@ -308,7 +306,9 @@ function LatePunchInModal({ onClose, onSubmit }: LatePunchInModalProps) {
 interface TerminateTimerModalProps {
   startTime: number;
   onClose: () => void;
-  onSubmit: (endTimeMs: number) => Promise<{ success: boolean; error?: string }>;
+  onSubmit: (
+    endTimeMs: number,
+  ) => Promise<{ success: boolean; error?: string }>;
 }
 
 function TerminateTimerModal({
@@ -396,11 +396,7 @@ function TerminateTimerModal({
             <button type="button" className="btn-secondary" onClick={onClose}>
               Cancel
             </button>
-            <button
-              type="submit"
-              className="btn-danger"
-              disabled={loading}
-            >
+            <button type="submit" className="btn-danger" disabled={loading}>
               <RiCheckLine size={18} />
               {loading ? "Terminating..." : "Terminate & Reset"}
             </button>
@@ -647,11 +643,15 @@ export default function DashboardClient({
   const [editingSessionIdx, setEditingSessionIdx] = useState<number | null>(
     null,
   );
-  const [pendingDeleteSessionIdx, setPendingDeleteSessionIdx] = useState<number | null>(null);
+  const [pendingDeleteSessionIdx, setPendingDeleteSessionIdx] = useState<
+    number | null
+  >(null);
   const [isConfirmingClearToday, setIsConfirmingClearToday] = useState(false);
 
   const [note, setNote] = useState("");
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveStatus, setSaveStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -739,9 +739,10 @@ export default function DashboardClient({
       const standardWorkMs = 8 * 3600000;
       const currentOtMin = getOtMinutes(totalWork);
       const nextTierMin = currentOtMin === 0 ? 30 : currentOtMin + 30;
-      const nextOtThresholdMs = nextTierMin === 30 
-        ? standardWorkMs + 30 * 60000 
-        : standardWorkMs + (nextTierMin - 15) * 60000;
+      const nextOtThresholdMs =
+        nextTierMin === 30
+          ? standardWorkMs + 30 * 60000
+          : standardWorkMs + (nextTierMin - 15) * 60000;
 
       const msUntilNextOt = nextOtThresholdMs - totalWork;
       const nextOtClockTime = now + msUntilNextOt;
@@ -889,14 +890,18 @@ export default function DashboardClient({
             <div className="stale-timer-content">
               <RiAlertLine size={22} />
               <div className="stale-timer-text">
-                <strong>Timer still running from{" "}
+                <strong>
+                  Timer still running from{" "}
                   {new Date(state.startTime).toLocaleDateString([], {
                     weekday: "short",
                     month: "short",
                     day: "numeric",
                   })}
                 </strong>
-                <span>You forgot to stop your timer. Terminate it to start a new day.</span>
+                <span>
+                  You forgot to stop your timer. Terminate it to start a new
+                  day.
+                </span>
               </div>
             </div>
             <button
@@ -922,7 +927,7 @@ export default function DashboardClient({
                 <div className="input-half">
                   <span className="input-label-small">Hours</span>
                   <input
-                  className="input-disabled"
+                    className="input-disabled"
                     type="number"
                     id="workHours"
                     disabled
@@ -935,7 +940,7 @@ export default function DashboardClient({
                 <div className="input-half">
                   <span className="input-label-small">Minutes</span>
                   <input
-                  className="input-disabled"
+                    className="input-disabled"
                     type="number"
                     id="workMinutes"
                     disabled
@@ -951,7 +956,7 @@ export default function DashboardClient({
             <div className="form-group">
               <label>Break Time (Minutes)</label>
               <input
-              className="input-disabled"
+                className="input-disabled"
                 type="number"
                 id="breakMinutes"
                 disabled
@@ -981,11 +986,11 @@ export default function DashboardClient({
             {/* LEFT: Timer card */}
             <div className="glass-card dashboard-card animate-in">
               <div className="dash-header">
-                <div style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ display: "flex", alignItems: "center" }}>
                   <span
                     className={`status-badge ${state.status === "working" ? "working" : "on-break"}`}
                     onClick={triggerSecretOt}
-                    style={{ cursor: 'pointer' }}
+                    style={{ cursor: "pointer" }}
                   >
                     {state.status === "working" ? (
                       <>
@@ -1018,7 +1023,9 @@ export default function DashboardClient({
                 <div className="leave-time-display">
                   {!showSecretOt ? (
                     <>
-                      <span className="leave-time-label">You can leave at </span>
+                      <span className="leave-time-label">
+                        You can leave at{" "}
+                      </span>
                       <span
                         className="leave-time-value mono"
                         title={`Early leave: ${earlyLeaveTimeStr}`}
@@ -1029,8 +1036,8 @@ export default function DashboardClient({
                   ) : (
                     <>
                       <span className="leave-time-label">
-                        {getOtMinutes(totalWork) === 0 
-                          ? `${formatOtMinutes(30)} starts at` 
+                        {getOtMinutes(totalWork) === 0
+                          ? `${formatOtMinutes(30)} starts at`
                           : `${formatOtMinutes(getOtMinutes(totalWork) + 30)} at`}
                       </span>
                       <span className="leave-time-value mono">
@@ -1050,27 +1057,27 @@ export default function DashboardClient({
               </div>
 
               <div className="stats-grid">
-                <div className="stat-card">
+                <div className="stat-card mb-center">
                   <span className="stat-label">Worked</span>
                   <span className="stat-value mono">
                     {formatShortTime(totalWork)}
                   </span>
                 </div>
-                <div className="stat-card">
+                <div className="stat-card mb-center">
                   <span className="stat-label">Break Used</span>
-                  <span className="stat-value mono">
+                  <span className="stat-value mono ">
                     {formatShortTime(totalBreak)}
                   </span>
                 </div>
-                <div className="stat-card">
+                <div className="stat-card mb-center">
                   <span className="stat-label">Break Left</span>
                   <span
-                    className={`stat-value mono ${remainingBreak <= 0 ? "danger" : ""}`}
+                    className={`stat-value mono mb-center ${remainingBreak <= 0 ? "danger" : ""}`}
                   >
                     {formatShortTime(Math.max(0, remainingBreak))}
                   </span>
                 </div>
-                <div className="stat-card">
+                <div className="stat-card mb-center">
                   <span className="stat-label">Entry Time</span>
                   <span className="stat-value mono">{startTimeStr}</span>
                 </div>
@@ -1137,7 +1144,9 @@ export default function DashboardClient({
             </div>
 
             {/* RIGHT: Session panel and Daily Note */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "24px" }}
+            >
               <SessionPanel
                 logs={state.logs}
                 status={state.status}

@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { auth } from "@/lib/auth";
 import "./globals.scss";
 import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
 import NotificationBanner from "@/components/NotificationBanner";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import { getAppName } from "@/lib/brand";
@@ -72,7 +73,8 @@ export default async function RootLayout({
               <ServiceWorkerRegistrar />
               <Navbar />
               <NotificationBanner />
-              {children}
+              <div className="app-main">{children}</div>
+              <Footer />
             </div>
           </ThemeProvider>
         </SessionProvider>

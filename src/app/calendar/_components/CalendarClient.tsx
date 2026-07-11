@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  useMemo,
+  forwardRef,
+} from "react";
 import dynamic from "next/dynamic";
 import DayDetailModal from "./DayDetailModal";
 import ManualEntryPanel from "./ManualEntryPanel";
@@ -8,19 +15,30 @@ import SalaryCalculatorModal from "./SalaryCalculatorModal";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { RiWifiOffLine } from "@remixicon/react";
 
-const FullCalendar = dynamic(() => import("@fullcalendar/react"), {
-  ssr: false,
-  loading: () => (
-    <div className="calendar-skeleton">
-      <div className="calendar-skeleton-header" />
-      <div className="calendar-skeleton-grid">
-        {Array.from({ length: 35 }).map((_, i) => (
-          <div key={i} className="calendar-skeleton-cell" />
-        ))}
+const FullCalendar = dynamic<any>(
+  () =>
+    import("@fullcalendar/react").then((m) => {
+      const FC = m.default;
+      const Forwarded = forwardRef((props: any, ref: any) => (
+        <FC {...props} ref={ref} />
+      ));
+      Forwarded.displayName = "ForwardedCalendar";
+      return Forwarded;
+    }),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="calendar-skeleton">
+        <div className="calendar-skeleton-header" />
+        <div className="calendar-skeleton-grid">
+          {Array.from({ length: 35 }).map((_, i) => (
+            <div key={i} className="calendar-skeleton-cell" />
+          ))}
+        </div>
       </div>
-    </div>
-  ),
-});
+    ),
+  },
+);
 
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
@@ -98,6 +116,16 @@ function msFmt(ms: number): string {
   return `${h}hr ${m}min`;
 }
 
+function msFmtCompact(ms: number): string {
+  if (ms <= 0) return "";
+  const totalMin = Math.floor(ms / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h${m}m`;
+}
+
 function saveCalendarCache(
   events: CalendarEvent[],
   holidays: Holiday[],
@@ -148,6 +176,33 @@ export default function CalendarClient({
   const [showSalaryModal, setShowSalaryModal] = useState(false);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const fetchedRef = useRef(false);
+  const calendarRef = useRef<any>(null);
+
+  // Switch between week view on mobile and month view on desktop
+  useEffect(() => {
+    const handleResize = () => {
+      const calendarApi = calendarRef.current?.getApi();
+      if (!calendarApi) return;
+
+      const isMobile = window.innerWidth < 640;
+      const currentView = calendarApi.view.type;
+
+      if (isMobile && currentView !== "dayGridWeek") {
+        calendarApi.changeView("dayGridWeek");
+      } else if (!isMobile && currentView !== "dayGridMonth") {
+        calendarApi.changeView("dayGridMonth");
+      }
+    };
+
+    // Run initial check after mounting
+    const timer = setTimeout(handleResize, 100);
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   // On mount: if server returned empty data (offline SSR) try loading from cache
   useEffect(() => {
@@ -460,11 +515,12 @@ export default function CalendarClient({
           </div>
         )}
         <FullCalendar
+          ref={calendarRef}
           plugins={[dayGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
           headerToolbar={{ left: "prev,next", center: "title", right: "today" }}
           dayHeaderFormat={{ weekday: "long" }}
-          dayCellClassNames={(arg) => {
+          dayCellClassNames={(arg: any) => {
             const dateStr =
               arg.date.getFullYear() +
               "-" +
@@ -484,13 +540,17 @@ export default function CalendarClient({
             return [];
           }}
           eventDisplay="none"
-          dayCellContent={(arg) => {
+          dayCellContent={(arg: any) => {
             const y = arg.date.getFullYear();
             const mo = String(arg.date.getMonth() + 1).padStart(2, "0");
             const d = String(arg.date.getDate()).padStart(2, "0");
             const dateStr = `${y}-${mo}-${d}`;
             const summary = dailySummaryMap[dateStr];
             const hol = holidaysMap[dateStr];
+
+            const weekday = arg.date.toLocaleDateString("en-US", {
+              weekday: "short",
+            });
 
             let overtimeMs = 0;
             let earlyMs = 0;
@@ -516,7 +576,10 @@ export default function CalendarClient({
 
                 if (summary.workMs > effectiveWorkDurationMs) {
                   overtimeMs = summary.workMs - effectiveWorkDurationMs;
-                } else if (!summary.hasActive && summary.workMs < effectiveWorkDurationMs) {
+                } else if (
+                  !summary.hasActive &&
+                  summary.workMs < effectiveWorkDurationMs
+                ) {
                   earlyMs = effectiveWorkDurationMs - summary.workMs;
                 }
               }
@@ -525,7 +588,8 @@ export default function CalendarClient({
             // Rounding rules
             const overtimeMin = Math.floor(overtimeMs / 60000);
             if (overtimeMin >= 30) {
-              const roundedOvertimeMin = Math.floor((overtimeMin - 15) / 30) * 30 + 30;
+              const roundedOvertimeMin =
+                Math.floor((overtimeMin - 15) / 30) * 30 + 30;
               overtimeMs = roundedOvertimeMin * 60000;
             } else {
               overtimeMs = 0;
@@ -533,7 +597,8 @@ export default function CalendarClient({
 
             const earlyMin = Math.floor(earlyMs / 60000);
             if (earlyMin > 30) {
-              const roundedEarlyMin = Math.floor((earlyMin - 15) / 30) * 30 + 30;
+              const roundedEarlyMin =
+                Math.floor((earlyMin - 15) / 30) * 30 + 30;
               earlyMs = roundedEarlyMin * 60000;
             } else {
               earlyMs = 0;
@@ -542,27 +607,64 @@ export default function CalendarClient({
             const note = notesMap[dateStr];
 
             return (
-              <div className={`fc-day-cell-inner ${hol ? "has-holiday" : ""}`}>
+              <div
+                className={`fc-day-cell-inner ${hol ? "has-holiday" : ""}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDateClick({ dateStr });
+                }}
+              >
                 <span className="fc-daygrid-day-number">
-                  {arg.dayNumberText}
+                  <span
+                    className="show-mobile-inline"
+                    style={{ marginRight: "6px", opacity: 0.6 }}
+                  >
+                    {weekday}
+                  </span>
+                  {arg.date.getDate()}
                 </span>
                 {overtimeMs > 0 && (
                   <span className="dcs-overtime">
-                    O.T. ({msFmt(overtimeMs)})
+                    <span className="hide-mobile">
+                      O.T. ({msFmt(overtimeMs)})
+                    </span>
+                    <span className="show-mobile-inline">
+                      +{msFmtCompact(overtimeMs)}
+                    </span>
                   </span>
                 )}
                 {earlyMs > 0 && (
-                  <span className="dcs-early">E.G. ({msFmt(earlyMs)})</span>
+                  <span className="dcs-early">
+                    <span className="hide-mobile">E.G. ({msFmt(earlyMs)})</span>
+                    <span className="show-mobile-inline">
+                      -{msFmtCompact(earlyMs)}
+                    </span>
+                  </span>
                 )}
                 {summary && summary.workMs > 60000 && (
                   <div className="day-cell-summary">
                     {summary.hasActive && (
-                      <span className="dcs-active">🟢 Active</span>
+                      <span className="dcs-active">
+                        <span className="hide-mobile">🟢 Active</span>
+                        <span className="show-mobile-inline">🟢</span>
+                      </span>
                     )}
-                    <span className="dcs-work">⏱ {msFmt(summary.workMs)}</span>
+                    <span className="dcs-work">
+                      <span className="hide-mobile">
+                        ⏱ {msFmt(summary.workMs)}
+                      </span>
+                      <span className="show-mobile-inline">
+                        ⏱{msFmtCompact(summary.workMs)}
+                      </span>
+                    </span>
                     {summary.breakMs > 60000 && (
                       <span className="dcs-break">
-                        ☕ {msFmt(summary.breakMs)}
+                        <span className="hide-mobile">
+                          ☕ {msFmt(summary.breakMs)}
+                        </span>
+                        <span className="show-mobile-inline">
+                          ☕{msFmtCompact(summary.breakMs)}
+                        </span>
                       </span>
                     )}
                   </div>

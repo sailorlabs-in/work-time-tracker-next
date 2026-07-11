@@ -1,0 +1,120 @@
+.app-footer {
+  border-top: 1px solid var(--navbar-border);
+  background: var(--navbar-bg);
+  color: var(--text-muted);
+  margin-top: auto;
+}
+
+.app-footer-inner {
+  width: min(100%, 1200px);
+  margin: 0 auto;
+  padding: 22px 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.app-footer-top {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(240px, 0.9fr) minmax(300px, 1.1fr);
+  align-items: start;
+  gap: 40px;
+}
+
+.app-footer-brand,
+.app-footer-copy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.app-footer-about {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.app-footer-brand {
+  color: var(--text-main);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.app-footer-logo {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.app-footer-instructions {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.app-footer-about p {
+  max-width: 420px;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+
+.app-footer-instructions h2 {
+  margin-bottom: 6px;
+  color: var(--text-main);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.app-footer-instructions ul {
+  display: grid;
+  gap: 6px;
+  padding-left: 18px;
+}
+
+.app-footer-instructions li::marker {
+  color: var(--accent-primary);
+}
+
+.app-footer-copy {
+  width: 100%;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding-top: 14px;
+  border-top: 1px solid var(--navbar-border);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .app-footer-inner {
+    padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+    align-items: center;
+    text-align: center;
+  }
+
+  .app-footer-top {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .app-footer-brand,
+  .app-footer-copy {
+    justify-content: center;
+  }
+
+  .app-footer-about {
+    align-items: center;
+  }
+
+  .app-footer-about p,
+  .app-footer-instructions ul {
+    max-width: 360px;
+  }
+
+  .app-footer-instructions ul {
+    text-align: left;
+  }
+}
