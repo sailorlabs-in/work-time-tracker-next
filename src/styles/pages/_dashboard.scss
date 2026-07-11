@@ -196,8 +196,35 @@
 }
 
 @media (max-width: 640px) {
+  .mb-center {
+    text-align: center;
+  }
+
   .session-panel-actions {
     opacity: 1;
+  }
+
+  .session-panel-live-dot {
+    display: none;
+  }
+
+  .session-panel-row {
+    align-items: flex-start;
+    padding: 12px 14px;
+  }
+
+  .session-panel-main {
+    gap: 8px;
+  }
+
+  .session-panel-times {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+
+  .session-panel-dur {
+    margin-left: 34px;
+    padding-right: 0;
   }
 }
 
@@ -289,8 +316,17 @@
 }
 
 @media (max-width: 480px) {
+  .dash-header {
+    gap: 8px;
+  }
+
+  .timer-hero {
+    padding: 18px 0;
+  }
+
   .timer-value {
-    font-size: 2.8rem;
+    font-size: 2.35rem;
+    letter-spacing: -1px;
   }
 }
 
@@ -360,6 +396,7 @@
 
 @media (max-width: 480px) {
   .stats-grid {
+    grid-template-columns: 1fr;
     gap: 8px;
   }
 
@@ -767,10 +804,10 @@
   .stale-timer-banner {
     flex-direction: column;
     align-items: stretch;
+    padding: 14px;
   }
 
   .btn-terminate {
     justify-content: center;
   }
 }
-

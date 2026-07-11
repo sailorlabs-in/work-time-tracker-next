@@ -13,6 +13,8 @@
 
 html {
   scroll-behavior: smooth;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -33,6 +35,8 @@ body {
   transition:
     background-color 0.3s ease,
     color 0.3s ease;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .mono {
@@ -132,3 +136,33 @@ body {
 .glass-card {
   @include glass-card;
 }
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .gradient-text {
+    font-size: 1.65rem;
+    line-height: 1.2;
+  }
+}
+
+/* ─── Global Responsive Utility Classes ─── */
+.show-mobile-inline,
+.show-mobile-block {
+  display: none !important;
+}
+
+@media (max-width: 640px) {
+  .hide-mobile {
+    display: none !important;
+  }
+  .show-mobile-inline {
+    display: inline !important;
+  }
+  .show-mobile-block {
+    display: block !important;
+  }
+}
+

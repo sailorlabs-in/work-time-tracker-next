@@ -305,3 +305,33 @@
   padding-top: 4px;
   opacity: 0.7;
 }
+
+@media (max-width: 640px) {
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .modal-card,
+  .manual-entry-modal-card {
+    max-width: 100%;
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    border-radius: var(--radius-md);
+  }
+
+  .modal-time-row,
+  .modal-footer,
+  .dm-confirm-actions {
+    flex-direction: column;
+  }
+
+  .modal-time-arrow {
+    display: none;
+  }
+
+  .modal-footer > *,
+  .dm-confirm-actions > * {
+    width: 100%;
+  }
+}
