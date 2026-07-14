@@ -524,6 +524,7 @@ function ManageHolidaysTab() {
   const [type, setType] = useState<"full" | "partial">("full");
   const [durationHours, setDurationHours] = useState(0);
   const [durationMinutesStr, setDurationMinutesStr] = useState(0);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const fetchHolidays = () => {
     fetch("/api/admin/holidays")
@@ -546,8 +547,11 @@ function ManageHolidaysTab() {
       const durationMinutes =
         type === "full" ? null : durationHours * 60 + durationMinutesStr;
       
-      const res = await fetch("/api/admin/holidays", {
-        method: "POST",
+      const url = editingId ? `/api/admin/holidays/${editingId}` : "/api/admin/holidays";
+      const method = editingId ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, date, durationMinutes }),
       });
@@ -556,15 +560,43 @@ function ManageHolidaysTab() {
         setName("");
         setDate("");
         setType("full");
+        setDurationHours(0);
+        setDurationMinutesStr(0);
+        setEditingId(null);
         fetchHolidays();
       } else {
-        alert("Failed to create holiday");
+        alert(editingId ? "Failed to update holiday" : "Failed to create holiday");
       }
     } catch {
-      alert("Error creating holiday");
+      alert(editingId ? "Error updating holiday" : "Error creating holiday");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEditClick = (h: Holiday) => {
+    setEditingId(h.id);
+    setName(h.name);
+    const dateVal = h.date ? h.date.split("T")[0] : "";
+    setDate(dateVal);
+    if (h.durationMinutes === null) {
+      setType("full");
+      setDurationHours(0);
+      setDurationMinutesStr(0);
+    } else {
+      setType("partial");
+      setDurationHours(Math.floor(h.durationMinutes / 60));
+      setDurationMinutesStr(h.durationMinutes % 60);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setName("");
+    setDate("");
+    setType("full");
+    setDurationHours(0);
+    setDurationMinutesStr(0);
   };
 
   const handleDelete = async (id: string, holidayName: string) => {
@@ -572,6 +604,9 @@ function ManageHolidaysTab() {
 
     try {
       await fetch(`/api/admin/holidays/${id}`, { method: "DELETE" });
+      if (editingId === id) {
+        handleCancelEdit();
+      }
       fetchHolidays();
     } catch {
       alert("Failed to delete holiday");
@@ -652,9 +687,19 @@ function ManageHolidaysTab() {
           )}
         </div>
 
-        <div className="form-actions">
-          <button type="submit" className="btn-primary" disabled={loading}>
-            {loading ? "Adding..." : "Add Holiday"}
+        <div className="form-actions" style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+          {editingId && (
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={handleCancelEdit}
+              style={{ padding: "10px 20px" }}
+            >
+              Cancel
+            </button>
+          )}
+          <button type="submit" className="btn-primary" disabled={loading} style={{ padding: "10px 20px" }}>
+            {loading ? (editingId ? "Updating..." : "Adding...") : (editingId ? "Update Holiday" : "Add Holiday")}
           </button>
         </div>
       </form>
@@ -691,12 +736,21 @@ function ManageHolidaysTab() {
                 )}
               </td>
               <td>
-                <button
-                  className="btn-secondary btn-delete-sm"
-                  onClick={() => handleDelete(h.id, h.name)}
-                >
-                  Delete
-                </button>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <button
+                    className="btn-secondary"
+                    style={{ padding: "6px 12px", fontSize: "0.8rem" }}
+                    onClick={() => handleEditClick(h)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="btn-secondary btn-delete-sm"
+                    onClick={() => handleDelete(h.id, h.name)}
+                  >
+                    Delete
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

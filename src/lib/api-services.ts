@@ -75,7 +75,7 @@ export async function getHolidays(startDate?: string, endDate?: string) {
 
     const holidays = await prisma.holiday.findMany({
       where,
-      orderBy: { date: "asc" },
+      orderBy: { date: "desc" },
     });
 
     return holidays.map((h) => ({

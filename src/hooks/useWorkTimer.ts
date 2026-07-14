@@ -264,68 +264,7 @@ export function useWorkTimer(
     }
   }, []);
 
-  // Save state to localStorage on change
-  useEffect(() => {
-    if (state.isActive) {
-      localStorage.setItem("wtt_state_next", JSON.stringify(state));
-    }
-  }, [state]);
 
-  // Timer interval (tick every second + overtime notification)
-  useEffect(() => {
-    if (state.isActive) {
-      intervalRef.current = setInterval(() => {
-        const nowMs = Date.now();
-        setCurrentTime(nowMs);
-
-        const currentWork =
-          state.status === "working" && state.lastStatusChange
-            ? nowMs - state.lastStatusChange
-            : 0;
-        const totalWorkNow = state.accumulatedWorkMs + currentWork;
-
-        // 1. Track completion state (cron handles the actual push notification)
-        if (
-          state.status === "working" &&
-          !state.hasFiredOtNotification &&
-          state.targetWorkMs > 0 &&
-          totalWorkNow >= state.targetWorkMs
-        ) {
-          setState((prev) => ({ ...prev, hasFiredOtNotification: true }));
-        }
-
-        // 2. Track interval state (cron handles the actual push notification)
-        const notifyIntervalMins = userProfile ? userProfile.notifyInterval ?? 30 : 30;
-        const intervalMs = notifyIntervalMins * 60 * 1000;
-
-        if (
-          state.status === "working" &&
-          state.targetWorkMs > 0 &&
-          totalWorkNow < state.targetWorkMs // Only until time completes
-        ) {
-          const currentMultiple = Math.floor(totalWorkNow / intervalMs);
-          const lastNotified = state.lastNotifiedInterval || 0;
-
-          if (currentMultiple > lastNotified) {
-            // Update local state so DB sync keeps the cron up-to-date
-            setState((prev) => ({ ...prev, lastNotifiedInterval: currentMultiple }));
-          }
-        }
-      }, 1000);
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [
-    state.isActive,
-    state.status,
-    state.lastStatusChange,
-    state.accumulatedWorkMs,
-    state.targetWorkMs,
-    state.hasFiredOtNotification,
-    state.lastNotifiedInterval,
-    userProfile,
-  ]);
 
   // Auto-sync every 5 minutes to PostgreSQL
   useEffect(() => {
@@ -628,6 +567,97 @@ export function useWorkTimer(
     },
     [],
   );
+  // Save state to localStorage on change and check if stale (date changed)
+  useEffect(() => {
+    if (state.isActive) {
+      localStorage.setItem("wtt_state_next", JSON.stringify(state));
+
+      if (state.startTime) {
+        const startDate = new Date(state.startTime);
+        const today = new Date();
+        const isStale =
+          startDate.getFullYear() !== today.getFullYear() ||
+          startDate.getMonth() !== today.getMonth() ||
+          startDate.getDate() !== today.getDate();
+
+        if (isStale) {
+          resetDay();
+        }
+      }
+    }
+  }, [state, resetDay]);
+
+  // Timer interval (tick every second + overtime notification + date change auto-reset check)
+  useEffect(() => {
+    if (state.isActive) {
+      intervalRef.current = setInterval(() => {
+        const nowMs = Date.now();
+        setCurrentTime(nowMs);
+
+        // Check if date changed (timer is stale)
+        const startDate = state.startTime ? new Date(state.startTime) : null;
+        const today = new Date(nowMs);
+        const isStale = startDate && (
+          startDate.getFullYear() !== today.getFullYear() ||
+          startDate.getMonth() !== today.getMonth() ||
+          startDate.getDate() !== today.getDate()
+        );
+
+        if (isStale) {
+          resetDay();
+          return;
+        }
+
+        const currentWork =
+          state.status === "working" && state.lastStatusChange
+            ? nowMs - state.lastStatusChange
+            : 0;
+        const totalWorkNow = state.accumulatedWorkMs + currentWork;
+
+        // 1. Track completion state (cron handles the actual push notification)
+        if (
+          state.status === "working" &&
+          !state.hasFiredOtNotification &&
+          state.targetWorkMs > 0 &&
+          totalWorkNow >= state.targetWorkMs
+        ) {
+          setState((prev) => ({ ...prev, hasFiredOtNotification: true }));
+        }
+
+        // 2. Track interval state (cron handles the actual push notification)
+        const notifyIntervalMins = userProfile ? userProfile.notifyInterval ?? 30 : 30;
+        const intervalMs = notifyIntervalMins * 60 * 1000;
+
+        if (
+          state.status === "working" &&
+          state.targetWorkMs > 0 &&
+          totalWorkNow < state.targetWorkMs // Only until time completes
+        ) {
+          const currentMultiple = Math.floor(totalWorkNow / intervalMs);
+          const lastNotified = state.lastNotifiedInterval || 0;
+
+          if (currentMultiple > lastNotified) {
+            // Update local state so DB sync keeps the cron up-to-date
+            setState((prev) => ({ ...prev, lastNotifiedInterval: currentMultiple }));
+          }
+        }
+      }, 1000);
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [
+    state.isActive,
+    state.startTime,
+    state.status,
+    state.lastStatusChange,
+    state.accumulatedWorkMs,
+    state.targetWorkMs,
+    state.hasFiredOtNotification,
+    state.lastNotifiedInterval,
+    userProfile,
+    resetDay,
+  ]);
 
   // Stale timer detection: timer started on a different calendar day
   const isStaleTimer = (() => {
