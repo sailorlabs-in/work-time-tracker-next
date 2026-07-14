@@ -1,0 +1,19 @@
+stages:
+  - test
+
+test:
+  stage: test
+  image: gliderlabs/herokuish:latest
+  services:
+    - name: postgres:9.6.16
+      alias: postgres
+  variables:
+    POSTGRES_DB: postgres
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: postgres
+  script:
+    - export DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+    - cp -R . /tmp/app
+    - /bin/herokuish buildpack test
+  tags:
+    - server-runner
