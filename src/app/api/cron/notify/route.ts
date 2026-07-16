@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { vibeServerClient } from "@/lib/vibe-server-client";
+import { CustomNotification } from "@/hooks/useWorkTimer";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -9,6 +10,20 @@ function formatShortTime(ms: number): string {
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
   return `${h}h ${m}m`;
+}
+
+function timeStrToMs(val: string): number {
+  const [h, m] = val.split(":").map(Number);
+  return (h * 60 + m) * 60 * 1000;
+}
+
+function getCurrentISTTimeStr(): string {
+  const nowUTC = new Date();
+  const istOffsetMs = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+  const nowIST = new Date(nowUTC.getTime() + istOffsetMs);
+  const h = String(nowIST.getUTCHours()).padStart(2, "0");
+  const m = String(nowIST.getUTCMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
 }
 
 /**
@@ -72,7 +87,7 @@ async function handleNotify(req: Request) {
   try {
     // 3. Fetch all active timers with user notification prefs
     const activeTimers = await prisma.timerState.findMany({
-      where: { isActive: true, status: "working" },
+      where: { isActive: true },
       include: {
         user: {
           select: {
@@ -99,17 +114,18 @@ async function handleNotify(req: Request) {
       const { user } = timer;
       if (!user.notificationsEnabled || !user.email) continue;
 
-      // Guard: lastStatusChange must exist for a running timer
-      if (!timer.lastStatusChange) continue;
-
-      const lastStatusChangeMs = Number(timer.lastStatusChange);
-      const currentSessionWork = nowMs - lastStatusChangeMs;
+      const lastStatusChangeMs = timer.lastStatusChange ? Number(timer.lastStatusChange) : 0;
+      const currentSessionWork =
+        timer.status === "working" && lastStatusChangeMs
+          ? nowMs - lastStatusChangeMs
+          : 0;
       const totalWorkNow = Number(timer.accumulatedWorkMs) + currentSessionWork;
       const targetWorkMs = Number(timer.targetWorkMs);
 
       try {
-        // ── Completion Notification ───────────────────────────────────────────
+        // ── Standard Completion Notification ───────────────────────────────────
         if (
+          timer.status === "working" &&
           user.notifyOnCompletion &&
           !timer.hasFiredOtNotification &&
           targetWorkMs > 0 &&
@@ -133,8 +149,9 @@ async function handleNotify(req: Request) {
           });
         }
 
-        // ── Progress / Interval Notification ─────────────────────────────────
+        // ── Standard Progress / Interval Notification ─────────────────────────
         if (
+          timer.status === "working" &&
           user.notifyConstant &&
           targetWorkMs > 0 &&
           totalWorkNow < targetWorkMs
@@ -164,6 +181,92 @@ async function handleNotify(req: Request) {
             });
           }
         }
+
+        // ── Custom Notifications from JSON List ──────────────────────────────
+        const customNotifs = (timer.customNotifications as unknown as CustomNotification[]) || [];
+        let didChange = false;
+
+        for (const notif of customNotifs) {
+          if (notif.hasFired) continue;
+
+          if (notif.type === "time") {
+            const currentISTTime = getCurrentISTTimeStr();
+            if (currentISTTime >= notif.value) {
+              if (vibeServerClient) {
+                await vibeServerClient.notification({
+                  notificationData: {
+                    title: notif.title || "Clock Time Alert ⏰",
+                    body: `It is now ${notif.value}.`,
+                  },
+                  externalUsers: [user.email],
+                });
+                results.progressSent++;
+              }
+              notif.hasFired = true;
+              didChange = true;
+            }
+          } else if (notif.type === "complete") {
+            const targetMs = timeStrToMs(notif.value);
+            if (targetMs > 0 && totalWorkNow >= targetMs) {
+              if (vibeServerClient) {
+                await vibeServerClient.notification({
+                  notificationData: {
+                    title: "Goal Completed! 🎉",
+                    body: `You completed your ${formatShortTime(targetMs)} target.`,
+                  },
+                  externalUsers: [user.email],
+                });
+                results.completionSent++;
+              }
+              notif.hasFired = true;
+              didChange = true;
+            }
+          } else if (notif.type === "overtime") {
+            const otMs = totalWorkNow - targetWorkMs;
+            const otThresholdMs = timeStrToMs(notif.value);
+            if (otMs >= otThresholdMs) {
+              if (vibeServerClient) {
+                await vibeServerClient.notification({
+                  notificationData: {
+                    title: "Overtime Alert! ⏱️",
+                    body: `Your Overtime has reached ${formatShortTime(otThresholdMs)}.`,
+                  },
+                  externalUsers: [user.email],
+                });
+                results.progressSent++;
+              }
+              notif.hasFired = true;
+              didChange = true;
+            }
+          } else if (notif.type === "punch_out") {
+            if (timer.status === "break" && lastStatusChangeMs) {
+              const breakDurationMs = nowMs - lastStatusChangeMs;
+              const thresholdMs = timeStrToMs(notif.value);
+              if (breakDurationMs >= thresholdMs) {
+                if (vibeServerClient) {
+                  await vibeServerClient.notification({
+                    notificationData: {
+                      title: "Break Time Alert! ⏱️",
+                      body: `You have been punched out/on break for ${formatShortTime(thresholdMs)}.`,
+                    },
+                    externalUsers: [user.email],
+                  });
+                  results.progressSent++;
+                }
+                notif.hasFired = true;
+                didChange = true;
+              }
+            }
+          }
+        }
+
+        if (didChange) {
+          await prisma.timerState.update({
+            where: { id: timer.id },
+            data: { customNotifications: customNotifs as any },
+          });
+        }
+
       } catch (err) {
         console.error(`[cron/notify] Error processing timer ${timer.id}:`, err);
         results.errors++;

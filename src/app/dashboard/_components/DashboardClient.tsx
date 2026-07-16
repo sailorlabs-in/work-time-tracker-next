@@ -24,13 +24,13 @@ import {
   RiPauseFill,
   RiErrorWarningLine,
   RiDeleteBinLine,
-  RiRefreshLine,
-  RiAlertLine,
   RiEdit2Line,
-  RiFileTextLine,
+  RiFlagLine,
 } from "@remixicon/react";
 import OfflineBanner from "@/components/OfflineBanner";
 import { ConfirmationModal } from "@/app/calendar/_components/DayDetailModal";
+import TodayNotificationsCard from "./TodayNotificationsCard";
+import DailyNoteCard from "./DailyNoteCard";
 
 interface UserProfile {
   timeFormat?: string;
@@ -302,7 +302,6 @@ function LatePunchInModal({ onClose, onSubmit }: LatePunchInModalProps) {
   );
 }
 
-
 // ─── Modal: Edit Session ───────────────────────────────────────
 interface EditSessionModalProps {
   session: SessionRow;
@@ -508,6 +507,8 @@ export default function DashboardClient({
     terminatePreviousTimer,
     updateSession,
     deleteSession,
+    addCustomNotification,
+    deleteCustomNotification,
     formatTime: ft,
   } = useWorkTimer(initialTimerState, userProfile);
 
@@ -523,6 +524,7 @@ export default function DashboardClient({
     const m = String(now.getMinutes()).padStart(2, "0");
     return `${h}:${m}`;
   });
+
   const [timeStr, setTimeStr] = useState<string>("");
   const [leaveTimeStr, setLeaveTimeStr] = useState<string>("");
   const [earlyLeaveTimeStr, setEarlyLeaveTimeStr] = useState<string>("");
@@ -769,8 +771,6 @@ export default function DashboardClient({
       )}
 
       <div className={`main-content${state.isActive ? " dashboard-page" : ""}`}>
-
-
         {!state.isActive ? (
           /* ─── Setup Form ─── */
           <div className="glass-card setup-card animate-in">
@@ -983,19 +983,64 @@ export default function DashboardClient({
               </div>
 
               <div className="danger-zone">
-                <div className="danger-zone-header">
-                  <RiErrorWarningLine size={20} />
-                  <span className="danger-zone-title">Danger Zone</span>
-                </div>
-                <div className="danger-actions">
+                <div
+                  className="danger-zone-header"
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    width: "100%",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <RiErrorWarningLine size={20} />
+                    <span className="danger-zone-title">Danger Zone</span>
+                  </div>
                   <button
                     onClick={() => setIsConfirmingClearToday(true)}
                     className="btn-danger-outline"
+                    style={{
+                      padding: "6px",
+                      borderRadius: "6px",
+                      background: "none",
+                      border: "1px solid transparent",
+                      color: "var(--text-muted)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "var(--danger-color)";
+                      e.currentTarget.style.borderColor =
+                        "rgba(239, 83, 80, 0.2)";
+                      e.currentTarget.style.background =
+                        "rgba(239, 83, 80, 0.08)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = "var(--text-muted)";
+                      e.currentTarget.style.borderColor = "transparent";
+                      e.currentTarget.style.background = "none";
+                    }}
+                    title="Clear Today's Logs"
                   >
-                    <RiDeleteBinLine size={18} /> Clear Today
+                    <RiDeleteBinLine size={16} />
                   </button>
-                  <button onClick={resetDay} className="btn-danger">
-                    <RiRefreshLine size={18} /> Reset Day
+                </div>
+                <div className="danger-actions" style={{ marginTop: "12px" }}>
+                  <button
+                    onClick={resetDay}
+                    className="btn-danger"
+                    style={{ width: "100%" }}
+                  >
+                    <RiFlagLine size={18} /> End Day
                   </button>
                 </div>
               </div>
@@ -1013,27 +1058,17 @@ export default function DashboardClient({
                 onDelete={(idx) => setPendingDeleteSessionIdx(idx)}
               />
 
-              <div className="notes-card glass-card animate-in">
-                <div className="notes-header">
-                  <span className="notes-header-icon">
-                    <RiFileTextLine size={20} />
-                  </span>
-                  <span className="notes-title">Daily Note</span>
-                  <span className="notes-status">
-                    {saveStatus === "saving" && "Saving..."}
-                    {saveStatus === "saved" && "Saved"}
-                    {saveStatus === "error" && "Error saving"}
-                  </span>
-                </div>
-                <div className="notes-body">
-                  <textarea
-                    className="notes-textarea"
-                    placeholder="Add notes for today (e.g. took a 2 hr lunch break, worked on task X...)"
-                    value={note}
-                    onChange={(e) => handleNoteChange(e.target.value)}
-                  />
-                </div>
-              </div>
+              <DailyNoteCard
+                note={note}
+                saveStatus={saveStatus}
+                handleNoteChange={handleNoteChange}
+              />
+
+              <TodayNotificationsCard
+                customNotifications={state.customNotifications || []}
+                addCustomNotification={addCustomNotification}
+                deleteCustomNotification={deleteCustomNotification}
+              />
             </div>
           </div>
         )}
