@@ -48,10 +48,9 @@ interface DashboardClientProps {
   userProfile: UserProfile | null;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────
-function timeStrToMs(timeStr: string): number {
+function timeStrToMs(timeStr: string, referenceMs?: number): number {
   const [h, m] = timeStr.split(":").map(Number);
-  const d = new Date();
+  const d = referenceMs ? new Date(referenceMs) : new Date();
   d.setHours(h, m, 0, 0);
   return d.getTime();
 }
@@ -358,6 +357,8 @@ function EditSessionModal({
               value={punchIn}
               onChange={(e) => setPunchIn(e.target.value)}
               required
+              disabled={index === 0}
+              className={index === 0 ? "input-disabled" : ""}
             />
           </div>
 
@@ -697,8 +698,9 @@ export default function DashboardClient({
     punchOutStr: string,
     punchInStr: string,
   ): string | null => {
-    const punchOutMs = timeStrToMs(punchOutStr);
-    const punchInMs = timeStrToMs(punchInStr);
+    const refMs = state.startTime ?? undefined;
+    const punchOutMs = timeStrToMs(punchOutStr, refMs);
+    const punchInMs = timeStrToMs(punchInStr, refMs);
     const r = addHistoricalBreak(punchOutMs, punchInMs);
     if (!r.success) return r.error ?? "Failed to add break.";
     setShowBreakModal(false);
@@ -707,7 +709,7 @@ export default function DashboardClient({
 
   const handleLatePunchOut = (punchOutStr: string): string | null => {
     if (state.status !== "working") return "You are not currently working.";
-    const punchOutMs = timeStrToMs(punchOutStr);
+    const punchOutMs = timeStrToMs(punchOutStr, state.startTime ?? undefined);
     if (punchOutMs > Date.now()) return "Stop time cannot be in the future.";
     const r = punchToggle(punchOutMs);
     if (!r.success) return r.error ?? "Failed to stop time.";
@@ -717,7 +719,7 @@ export default function DashboardClient({
 
   const handleLatePunchIn = (punchInStr: string): string | null => {
     if (state.status !== "break") return "You are not currently on break.";
-    const punchInMs = timeStrToMs(punchInStr);
+    const punchInMs = timeStrToMs(punchInStr, state.startTime ?? undefined);
     if (punchInMs > Date.now()) return "Punch-In time cannot be in the future.";
     const r = punchToggle(punchInMs);
     if (!r.success) return r.error ?? "Failed to punch in.";
@@ -752,23 +754,25 @@ export default function DashboardClient({
         />
       )}
 
-      {editingSessionIdx !== null && (
-        <EditSessionModal
-          session={
-            buildSessionRows(state.logs, state.status)[editingSessionIdx]
-          }
-          index={editingSessionIdx}
-          onClose={() => setEditingSessionIdx(null)}
-          onSubmit={(inStr, outStr) => {
-            updateSession(
-              editingSessionIdx,
-              timeStrToMs(inStr),
-              outStr ? timeStrToMs(outStr) : null,
-            );
-            setEditingSessionIdx(null);
-          }}
-        />
-      )}
+      {editingSessionIdx !== null && (() => {
+        const session = buildSessionRows(state.logs, state.status)[editingSessionIdx];
+        if (!session) return null;
+        return (
+          <EditSessionModal
+            session={session}
+            index={editingSessionIdx}
+            onClose={() => setEditingSessionIdx(null)}
+            onSubmit={(inStr, outStr) => {
+              updateSession(
+                editingSessionIdx,
+                timeStrToMs(inStr, session.punchIn),
+                outStr ? timeStrToMs(outStr, session.punchIn) : null,
+              );
+              setEditingSessionIdx(null);
+            }}
+          />
+        );
+      })()}
 
       <div className={`main-content${state.isActive ? " dashboard-page" : ""}`}>
         {!state.isActive ? (
