@@ -14,6 +14,14 @@ export interface TimerLog {
   time: number;
 }
 
+export interface CustomNotification {
+  id: string;
+  type: "time" | "complete" | "overtime" | "punch_out";
+  value: string;
+  title?: string;
+  hasFired: boolean;
+}
+
 export interface TimerState {
   isActive: boolean;
   startTime: number | null;
@@ -27,6 +35,7 @@ export interface TimerState {
   hasFiredOtNotification?: boolean;
   lastNotifiedInterval?: number;
   lastUpdated?: number;
+  customNotifications?: CustomNotification[];
 }
 
 const defaultState: TimerState = {
@@ -42,6 +51,7 @@ const defaultState: TimerState = {
   hasFiredOtNotification: false,
   lastNotifiedInterval: 0,
   lastUpdated: 0,
+  customNotifications: [],
 };
 
 export function formatTime(ms: number): string {
@@ -333,6 +343,7 @@ export function useWorkTimer(
         hasFiredOtNotification: false,
         lastNotifiedInterval: 0,
         lastUpdated: Date.now(),
+        customNotifications: [],
       };
 
       setState(newState);
@@ -767,6 +778,7 @@ export function useWorkTimer(
             logs: newLogs,
             accumulatedWorkMs: accWork,
             accumulatedBreakMs: accBreak,
+            startTime: index === 0 ? newPunchIn : prev.startTime,
             // If the edited row was the most recent one, update lastStatusChange
             lastStatusChange:
               index === rows.length - 1
@@ -861,6 +873,43 @@ export function useWorkTimer(
         return newState;
       });
     }, []),
+    addCustomNotification: useCallback(
+      (type: "time" | "complete" | "overtime" | "punch_out", value: string, title?: string) => {
+        setState((prev) => {
+          const currentList = prev.customNotifications || [];
+          const newNotif: CustomNotification = {
+            id: Math.random().toString(36).substr(2, 9),
+            type,
+            value,
+            title,
+            hasFired: false,
+          };
+          const newState = {
+            ...prev,
+            customNotifications: [...currentList, newNotif],
+            lastUpdated: Date.now(),
+          };
+          syncTimerStateToBackend(newState);
+          return newState;
+        });
+      },
+      [],
+    ),
+    deleteCustomNotification: useCallback(
+      (id: string) => {
+        setState((prev) => {
+          const currentList = prev.customNotifications || [];
+          const newState = {
+            ...prev,
+            customNotifications: currentList.filter((n) => n.id !== id),
+            lastUpdated: Date.now(),
+          };
+          syncTimerStateToBackend(newState);
+          return newState;
+        });
+      },
+      [],
+    ),
     formatTime,
     formatShortTime,
   };

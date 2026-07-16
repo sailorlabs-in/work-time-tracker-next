@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { TimerState, TimerStatus, TimerLog } from "@/hooks/useWorkTimer";
+import { TimerState, TimerStatus, TimerLog, CustomNotification } from "@/hooks/useWorkTimer";
 
 export async function getTimerState(
   userId: string,
@@ -29,6 +29,7 @@ export async function getTimerState(
       hasFiredOtNotification: timerState.hasFiredOtNotification,
       lastNotifiedInterval: timerState.lastNotifiedInterval,
       lastUpdated: timerState.lastUpdated ? Number(timerState.lastUpdated) : 0,
+      customNotifications: (timerState.customNotifications as unknown as CustomNotification[]) || [],
     };
   } catch (error) {
     console.error("Get timer state error:", error);
