@@ -17,6 +17,11 @@ function timeStrToMs(val: string): number {
   return (h * 60 + m) * 60 * 1000;
 }
 
+function timeStrToMinutes(val: string): number {
+  const [h, m] = val.split(":").map(Number);
+  return h * 60 + m;
+}
+
 function getCurrentISTTimeStr(): string {
   const nowUTC = new Date();
   const istOffsetMs = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
@@ -190,13 +195,15 @@ async function handleNotify(req: Request) {
           if (notif.hasFired) continue;
 
           if (notif.type === "time") {
-            const currentISTTime = getCurrentISTTimeStr();
-            if (currentISTTime >= notif.value) {
+            const currentISTMin = timeStrToMinutes(getCurrentISTTimeStr());
+            const targetMin = timeStrToMinutes(notif.value);
+            // Trigger 1 minute early
+            if (currentISTMin >= (targetMin > 0 ? targetMin - 1 : 0)) {
               if (vibeServerClient) {
                 await vibeServerClient.notification({
                   notificationData: {
-                    title: notif.title || "Clock Time Alert ⏰",
-                    body: `It is now ${notif.value}.`,
+                    title: "Clock Time Alert ⏰",
+                    body: notif.title || `It is now ${notif.value}.`,
                   },
                   externalUsers: [user.email],
                 });
@@ -207,7 +214,8 @@ async function handleNotify(req: Request) {
             }
           } else if (notif.type === "complete") {
             const targetMs = timeStrToMs(notif.value);
-            if (targetMs > 0 && totalWorkNow >= targetMs) {
+            // Trigger 1 minute (60,000 ms) early
+            if (targetMs > 0 && totalWorkNow >= (targetMs - 60000)) {
               if (vibeServerClient) {
                 await vibeServerClient.notification({
                   notificationData: {
@@ -224,7 +232,8 @@ async function handleNotify(req: Request) {
           } else if (notif.type === "overtime") {
             const otMs = totalWorkNow - targetWorkMs;
             const otThresholdMs = timeStrToMs(notif.value);
-            if (otMs >= otThresholdMs) {
+            // Trigger 1 minute (60,000 ms) early
+            if (otMs >= (otThresholdMs - 60000)) {
               if (vibeServerClient) {
                 await vibeServerClient.notification({
                   notificationData: {
@@ -242,7 +251,8 @@ async function handleNotify(req: Request) {
             if (timer.status === "break" && lastStatusChangeMs) {
               const breakDurationMs = nowMs - lastStatusChangeMs;
               const thresholdMs = timeStrToMs(notif.value);
-              if (breakDurationMs >= thresholdMs) {
+              // Trigger 1 minute (60,000 ms) early
+              if (breakDurationMs >= (thresholdMs - 60000)) {
                 if (vibeServerClient) {
                   await vibeServerClient.notification({
                     notificationData: {
