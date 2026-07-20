@@ -176,6 +176,7 @@ async function loadTimerStateFromBackend(): Promise<TimerState | null> {
           hasFiredOtNotification: data.hasFiredOtNotification || false,
           lastNotifiedInterval: data.lastNotifiedInterval || 0,
           lastUpdated: data.lastUpdated || 0,
+          customNotifications: Array.isArray(data.customNotifications) ? data.customNotifications : [],
         };
       }
     }

@@ -119,7 +119,9 @@ async function handleNotify(req: Request) {
       const { user } = timer;
       if (!user.notificationsEnabled || !user.email) continue;
 
-      const lastStatusChangeMs = timer.lastStatusChange ? Number(timer.lastStatusChange) : 0;
+      const lastStatusChangeMs = timer.lastStatusChange
+        ? Number(timer.lastStatusChange)
+        : 0;
       const currentSessionWork =
         timer.status === "working" && lastStatusChangeMs
           ? nowMs - lastStatusChangeMs
@@ -188,11 +190,13 @@ async function handleNotify(req: Request) {
         }
 
         // ── Custom Notifications from JSON List ──────────────────────────────
-        const customNotifs = (timer.customNotifications as unknown as CustomNotification[]) || [];
+        const customNotifs =
+          (timer.customNotifications as unknown as CustomNotification[]) || [];
         let didChange = false;
+        const firedIds = new Set<string>();
 
         for (const notif of customNotifs) {
-          if (notif.hasFired) continue;
+          if (notif.hasFired || firedIds.has(notif.id)) continue;
 
           if (notif.type === "time") {
             const currentISTMin = timeStrToMinutes(getCurrentISTTimeStr());
@@ -209,13 +213,13 @@ async function handleNotify(req: Request) {
                 });
                 results.progressSent++;
               }
-              notif.hasFired = true;
+              firedIds.add(notif.id);
               didChange = true;
             }
           } else if (notif.type === "complete") {
             const targetMs = timeStrToMs(notif.value);
             // Trigger 1 minute (60,000 ms) early
-            if (targetMs > 0 && totalWorkNow >= (targetMs - 60000)) {
+            if (targetMs > 0 && totalWorkNow >= targetMs - 60000) {
               if (vibeServerClient) {
                 await vibeServerClient.notification({
                   notificationData: {
@@ -226,14 +230,14 @@ async function handleNotify(req: Request) {
                 });
                 results.completionSent++;
               }
-              notif.hasFired = true;
+              firedIds.add(notif.id);
               didChange = true;
             }
           } else if (notif.type === "overtime") {
             const otMs = totalWorkNow - targetWorkMs;
             const otThresholdMs = timeStrToMs(notif.value);
             // Trigger 1 minute (60,000 ms) early
-            if (otMs >= (otThresholdMs - 60000)) {
+            if (otMs >= otThresholdMs - 60000) {
               if (vibeServerClient) {
                 await vibeServerClient.notification({
                   notificationData: {
@@ -244,7 +248,7 @@ async function handleNotify(req: Request) {
                 });
                 results.progressSent++;
               }
-              notif.hasFired = true;
+              firedIds.add(notif.id);
               didChange = true;
             }
           } else if (notif.type === "punch_out") {
@@ -252,7 +256,7 @@ async function handleNotify(req: Request) {
               const breakDurationMs = nowMs - lastStatusChangeMs;
               const thresholdMs = timeStrToMs(notif.value);
               // Trigger 1 minute (60,000 ms) early
-              if (breakDurationMs >= (thresholdMs - 60000)) {
+              if (breakDurationMs >= thresholdMs - 60000) {
                 if (vibeServerClient) {
                   await vibeServerClient.notification({
                     notificationData: {
@@ -263,7 +267,7 @@ async function handleNotify(req: Request) {
                   });
                   results.progressSent++;
                 }
-                notif.hasFired = true;
+                firedIds.add(notif.id);
                 didChange = true;
               }
             }
@@ -271,12 +275,17 @@ async function handleNotify(req: Request) {
         }
 
         if (didChange) {
+          const updatedNotifs = customNotifs.map((n) => {
+            if (firedIds.has(n.id)) {
+              return { ...n, hasFired: true };
+            }
+            return n;
+          });
           await prisma.timerState.update({
             where: { id: timer.id },
-            data: { customNotifications: customNotifs as any },
+            data: { customNotifications: updatedNotifs as any },
           });
         }
-
       } catch (err) {
         console.error(`[cron/notify] Error processing timer ${timer.id}:`, err);
         results.errors++;
