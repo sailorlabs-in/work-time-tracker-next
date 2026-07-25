@@ -526,6 +526,13 @@ function ManageHolidaysTab() {
   const [durationMinutesStr, setDurationMinutesStr] = useState(0);
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Weekend policy state
+  const [sundayOff, setSundayOff] = useState(true);
+  const [saturdayRule, setSaturdayRule] = useState("alternate_135");
+  const [customSaturdays, setCustomSaturdays] = useState<number[]>([]);
+  const [savingPolicy, setSavingPolicy] = useState(false);
+  const [policyMsg, setPolicyMsg] = useState("");
+
   const fetchHolidays = () => {
     fetch("/api/admin/holidays")
       .then((res) => res.json())
@@ -535,8 +542,21 @@ function ManageHolidaysTab() {
       });
   };
 
+  const fetchWeekendPolicy = () => {
+    fetch("/api/admin/weekend-policy")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data) {
+          setSundayOff(data.sundayOff ?? true);
+          setSaturdayRule(data.saturdayRule || "alternate_135");
+          setCustomSaturdays(data.customSaturdays || []);
+        }
+      });
+  };
+
   useEffect(() => {
     fetchHolidays();
+    fetchWeekendPolicy();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -621,11 +641,123 @@ function ManageHolidaysTab() {
     );
 
   return (
-    <div className="glass-card animate-in">
-      <h2>Manage Holidays</h2>
-      <p className="text-muted" style={{ marginBottom: "20px" }}>
-        Add global holidays that reflect on every users calendar.
-      </p>
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      {/* Global Weekend Policy Card */}
+      <div className="glass-card animate-in">
+        <h2>Global Weekend Off Policy</h2>
+        <p className="text-muted" style={{ marginBottom: "20px" }}>
+          Configure the company-wide weekend off policy for users following server settings.
+        </p>
+
+        {policyMsg && (
+          <div className="dm-message dm-message-success" style={{ marginBottom: "16px" }}>
+            <RiCheckLine size={18} /> {policyMsg}
+          </div>
+        )}
+
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          setSavingPolicy(true);
+          setPolicyMsg("");
+          try {
+            const res = await fetch("/api/admin/weekend-policy", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sundayOff, saturdayRule, customSaturdays }),
+            });
+            if (res.ok) {
+              setPolicyMsg("Weekend policy saved successfully!");
+            } else {
+              alert("Failed to update policy");
+            }
+          } catch {
+            alert("Error saving policy");
+          } finally {
+            setSavingPolicy(false);
+          }
+        }}>
+          <div className="holidays-form-row">
+            <div className="form-group">
+              <label>Sunday Off Policy</label>
+              <label className="toggle-wrapper" style={{ margin: "8px 0" }}>
+                <input
+                  type="checkbox"
+                  className="toggle-checkbox"
+                  checked={sundayOff}
+                  onChange={(e) => setSundayOff(e.target.checked)}
+                />
+                <div className="toggle-slider"></div>
+                <span style={{ marginLeft: "12px", fontSize: "0.95rem" }}>
+                  {sundayOff ? "Sundays are OFF" : "Sundays are Working"}
+                </span>
+              </label>
+            </div>
+
+            <div className="form-group">
+              <label>Saturday Off Rule</label>
+              <select
+                value={saturdayRule}
+                onChange={(e) => {
+                  setSaturdayRule(e.target.value);
+                  if (e.target.value !== "custom") setCustomSaturdays([]);
+                }}
+                style={{
+                  width: "100%",
+                  padding: "10px 14px",
+                  borderRadius: "10px",
+                  border: "1px solid var(--card-border)",
+                  background: "var(--input-bg)",
+                  color: "var(--text-main)",
+                  fontSize: "0.95rem",
+                }}
+              >
+                <option value="all">Every Saturday Off</option>
+                <option value="none">No Saturdays Off</option>
+                <option value="alternate_135">1st, 3rd &amp; 5th Saturdays Off</option>
+                <option value="alternate_24">2nd &amp; 4th Saturdays Off</option>
+                <option value="custom">Custom Saturdays (select week #)</option>
+              </select>
+            </div>
+          </div>
+
+          {saturdayRule === "custom" && (
+            <div className="form-group" style={{ marginBottom: "16px" }}>
+              <label>Select Off Saturdays (Week # of Month)</label>
+              <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginTop: "8px" }}>
+                {[1, 2, 3, 4, 5].map((w) => (
+                  <label key={w} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={customSaturdays.includes(w)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setCustomSaturdays((prev) => [...prev, w].sort());
+                        } else {
+                          setCustomSaturdays((prev) => prev.filter((v) => v !== w));
+                        }
+                      }}
+                    />
+                    Week {w} Saturday
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="form-actions" style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button type="submit" className="btn-primary" disabled={savingPolicy} style={{ padding: "10px 20px" }}>
+              {savingPolicy ? "Saving Policy..." : "Save Weekend Policy"}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Holidays List & Add Card */}
+      <div className="glass-card animate-in">
+        <h2>Manage Holidays</h2>
+        <p className="text-muted" style={{ marginBottom: "20px" }}>
+          Add global holidays that reflect on every user&apos;s calendar.
+        </p>
 
       <form onSubmit={handleSubmit} className="manage-holidays-form">
         <div className="holidays-form-row">
@@ -761,6 +893,7 @@ function ManageHolidaysTab() {
           )}
         </tbody>
       </table>
+    </div>
     </div>
   );
 }

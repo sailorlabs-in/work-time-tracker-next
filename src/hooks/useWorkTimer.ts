@@ -119,11 +119,13 @@ async function sendLogToBackend(
   type: "punch-in" | "punch-out",
   time: string,
   totalHours?: string,
+  getNow?: () => number,
 ) {
+  const nowFn = getNow || Date.now;
   const body = {
     type,
     time,
-    date: new Date().toISOString().split("T")[0],
+    date: new Date(nowFn()).toISOString().split("T")[0],
     totalHours,
   };
   try {
@@ -207,9 +209,13 @@ export function useWorkTimer(
     notifyConstant?: boolean;
     notifyInterval?: number;
   } | null = null,
+  getServerNow?: () => number,
 ) {
+  // Use server time if provided, otherwise fall back to Date.now
+  const getNow = getServerNow || Date.now;
+
   const [state, setState] = useState<TimerState>(initialState || defaultState);
-  const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const [currentTime, setCurrentTime] = useState(() => getNow());
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [isLoaded, setIsLoaded] = useState(!!initialState);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -281,11 +287,11 @@ export function useWorkTimer(
   useEffect(() => {
     if (state.isActive) {
       syncTimerStateToBackend(stateRef.current);
-      setLastSynced(new Date());
+      setLastSynced(new Date(getNow()));
 
       syncIntervalRef.current = setInterval(() => {
         syncTimerStateToBackend(stateRef.current);
-        setLastSynced(new Date());
+        setLastSynced(new Date(getNow()));
       }, SYNC_INTERVAL_MS);
     }
 
@@ -320,13 +326,13 @@ export function useWorkTimer(
       entryTimeStr: string,
     ) => {
       const totalWorkHours = workHours + workMinutes / 60;
-      const nowMs = Date.now();
+      const nowMs = getNow();
 
       const [h, m] = entryTimeStr.split(":").map(Number);
-      const entryDate = new Date();
+      const entryDate = new Date(nowMs);
       entryDate.setHours(h, m, 0, 0);
 
-      const currentDate = new Date();
+      const currentDate = new Date(nowMs);
       if (h === currentDate.getHours() && m === currentDate.getMinutes()) {
         entryDate.setTime(nowMs);
       }
@@ -343,20 +349,21 @@ export function useWorkTimer(
         logs: [{ type: "Start", time: entryDate.getTime() }],
         hasFiredOtNotification: false,
         lastNotifiedInterval: 0,
-        lastUpdated: Date.now(),
+        lastUpdated: getNow(),
         customNotifications: [],
       };
 
       setState(newState);
-      sendLogToBackend("punch-in", entryDate.toISOString());
+      sendLogToBackend("punch-in", entryDate.toISOString(), undefined, getNow);
       syncTimerStateToBackend(newState);
-      setLastSynced(new Date());
+      setLastSynced(new Date(getNow()));
     },
-    [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [getNow],
   );
 
   const punchToggle = useCallback((manualTimeMs?: number) => {
-    const nowMs = Date.now();
+    const nowMs = getNow();
     const punchTime = manualTimeMs || nowMs;
 
     if (punchTime > nowMs) {
@@ -384,6 +391,7 @@ export function useWorkTimer(
           "punch-out",
           new Date(effectiveNow).toISOString(),
           formatShortTime(newAccWork),
+          getNow,
         );
 
         newState = {
@@ -395,14 +403,14 @@ export function useWorkTimer(
             { type: "Punch Out (Break)", time: effectiveNow },
             ...prev.logs,
           ].slice(0, 50),
-          lastUpdated: Date.now(),
+          lastUpdated: getNow(),
         };
       } else if (prev.status === "break") {
         const sessionDuration =
           effectiveNow - (prev.lastStatusChange || effectiveNow);
         const newAccBreak = prev.accumulatedBreakMs + sessionDuration;
 
-        sendLogToBackend("punch-in", new Date(effectiveNow).toISOString());
+        sendLogToBackend("punch-in", new Date(effectiveNow).toISOString(), undefined, getNow);
 
         newState = {
           ...prev,
@@ -413,23 +421,24 @@ export function useWorkTimer(
             { type: "Punch In (Work)", time: effectiveNow },
             ...prev.logs,
           ].slice(0, 50),
-          lastUpdated: Date.now(),
+          lastUpdated: getNow(),
         };
       } else {
         return prev;
       }
 
       syncTimerStateToBackend(newState);
-      setLastSynced(new Date());
+      setLastSynced(new Date(getNow()));
       return newState;
     });
 
     return { success: true };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getNow]);
 
   const resetDay = useCallback(async () => {
     const prev = stateRef.current;
-    const nowMs = Date.now();
+    const nowMs = getNow();
 
     // If the timer is active, punch out the current session first so the DB record is closed
     if (prev.isActive && (prev.status === "working" || prev.status === "break")) {
@@ -443,6 +452,7 @@ export function useWorkTimer(
           "punch-out",
           new Date(nowMs).toISOString(),
           formatShortTime(prev.accumulatedWorkMs),
+          getNow,
         );
       } else if (prev.status === "working" && prev.lastStatusChange) {
         const totalWorkMs = prev.accumulatedWorkMs + (nowMs - prev.lastStatusChange);
@@ -450,6 +460,7 @@ export function useWorkTimer(
           "punch-out",
           new Date(nowMs).toISOString(),
           formatShortTime(totalWorkMs),
+          getNow,
         );
       }
     }
@@ -458,7 +469,8 @@ export function useWorkTimer(
     offlineQueue.clearQueue(); // discard any pending offline actions for old session
     setState(defaultState);
     await clearTimerStateFromBackend();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getNow]);
 
   const clearToday = useCallback(async () => {
     // Always reset local state immediately (offline-safe)
@@ -490,7 +502,7 @@ export function useWorkTimer(
       punchOutMs: number,
       punchInMs: number,
     ): { success: boolean; error?: string } => {
-      const nowMs = Date.now();
+      const nowMs = getNow();
 
       if (punchOutMs >= punchInMs) {
         return {
@@ -551,7 +563,7 @@ export function useWorkTimer(
           accumulatedBreakMs: newAccBreak,
           lastStatusChange: newLastStatusChange,
           logs: newLogs,
-          lastUpdated: Date.now(),
+          lastUpdated: getNow(),
         };
 
         syncTimerStateToBackend(newState);
@@ -574,10 +586,11 @@ export function useWorkTimer(
           offlineQueue.enqueue("/api/worklog/today/sync", "POST", syncBody);
         });
 
-      setLastSynced(new Date());
+      setLastSynced(new Date(getNow()));
       return { success: true };
     },
-    [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [getNow],
   );
   // Save state to localStorage on change and check if stale (date changed)
   useEffect(() => {
@@ -586,7 +599,7 @@ export function useWorkTimer(
 
       if (state.startTime) {
         const startDate = new Date(state.startTime);
-        const today = new Date();
+        const today = new Date(getNow());
         const isStale =
           startDate.getFullYear() !== today.getFullYear() ||
           startDate.getMonth() !== today.getMonth() ||
@@ -597,13 +610,14 @@ export function useWorkTimer(
         }
       }
     }
-  }, [state, resetDay]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, resetDay, getNow]);
 
   // Timer interval (tick every second + overtime notification + date change auto-reset check)
   useEffect(() => {
     if (state.isActive) {
       intervalRef.current = setInterval(() => {
-        const nowMs = Date.now();
+        const nowMs = getNow();
         setCurrentTime(nowMs);
 
         // Check if date changed (timer is stale)
@@ -669,13 +683,14 @@ export function useWorkTimer(
     state.lastNotifiedInterval,
     userProfile,
     resetDay,
+    getNow,
   ]);
 
   // Stale timer detection: timer started on a different calendar day
   const isStaleTimer = (() => {
     if (!state.isActive || !state.startTime) return false;
     const startDate = new Date(state.startTime);
-    const today = new Date();
+    const today = new Date(getNow());
     return (
       startDate.getFullYear() !== today.getFullYear() ||
       startDate.getMonth() !== today.getMonth() ||
@@ -785,7 +800,7 @@ export function useWorkTimer(
               index === rows.length - 1
                 ? (prev.status === "working" ? newPunchIn : (newPunchOut ?? prev.lastStatusChange))
                 : prev.lastStatusChange,
-            lastUpdated: Date.now(),
+            lastUpdated: getNow(),
           };
 
           syncTimerStateToBackend(newState);
@@ -845,8 +860,8 @@ export function useWorkTimer(
           logs: newLogs,
           accumulatedWorkMs: accWork,
           accumulatedBreakMs: accBreak,
-          lastUpdated: Date.now(),
-        };
+          lastUpdated: getNow(),
+          };
 
         // If we deleted all logs, reset active state? Or just let it be empty?
         if (newLogs.length === 0) {
@@ -888,7 +903,7 @@ export function useWorkTimer(
           const newState = {
             ...prev,
             customNotifications: [...currentList, newNotif],
-            lastUpdated: Date.now(),
+            lastUpdated: getNow(),
           };
           syncTimerStateToBackend(newState);
           return newState;
@@ -903,7 +918,7 @@ export function useWorkTimer(
           const newState = {
             ...prev,
             customNotifications: currentList.filter((n) => n.id !== id),
-            lastUpdated: Date.now(),
+            lastUpdated: getNow(),
           };
           syncTimerStateToBackend(newState);
           return newState;

@@ -9,7 +9,9 @@ import {
   RiWallet3Line,
   RiCalendarEventLine,
   RiInformationLine,
+  RiEdit2Line,
 } from "@remixicon/react";
+import { WeekendPolicyData, DEFAULT_WEEKEND_POLICY, isWeekendOffDay, getMonthWeekendOffs } from "@/lib/weekendPolicy";
 
 // ─── Local Storage Keys & Obfuscation ─────────────────────────
 const SALARY_STORAGE_KEY = "wtt_salary_base_encrypted";
@@ -79,26 +81,7 @@ interface Props {
   holidays: Holiday[];
   onClose: () => void;
   workDurationMs?: number;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────
-function getMonthWeekendOffs(year: number, month: number) {
-  let sundays = 0;
-  let offSaturdays = 0;
-  const daysInMonth = new Date(year, month, 0).getDate();
-  for (let d = 1; d <= daysInMonth; d++) {
-    const date = new Date(year, month - 1, d);
-    const day = date.getDay();
-    if (day === 0) {
-      sundays++;
-    } else if (day === 6) {
-      const weekNumber = Math.ceil(d / 7);
-      if ([1, 3, 5].includes(weekNumber)) {
-        offSaturdays++;
-      }
-    }
-  }
-  return { sundays, offSaturdays, daysInMonth };
+  weekendPolicy?: WeekendPolicyData;
 }
 
 export default function SalaryCalculatorModal({
@@ -107,6 +90,7 @@ export default function SalaryCalculatorModal({
   holidays,
   onClose,
   workDurationMs = 8 * 3600000,
+  weekendPolicy = DEFAULT_WEEKEND_POLICY,
 }: Props) {
   const workDurationHours = workDurationMs / 3600000;
   // ── State Variables ────────────────────────────────────────
@@ -155,7 +139,7 @@ export default function SalaryCalculatorModal({
     if (!selectedMonth) return { extraOffs: 0, reducedHours: 0, overtime: 0, absentDays: 0, insufficientHours: 0, insufficientDays: 0, totalPresentWorkingHours: 0 };
 
     const [year, month] = selectedMonth.split("-").map(Number);
-    const { daysInMonth } = getMonthWeekendOffs(year, month);
+    const { daysInMonth } = getMonthWeekendOffs(year, month, weekendPolicy);
 
     const monthHolidays = holidays.filter((h) => h.date.startsWith(selectedMonth));
 
@@ -184,10 +168,7 @@ export default function SalaryCalculatorModal({
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
       const dateObj = new Date(year, month - 1, d);
-      const dayOfWeek = dateObj.getDay();
-      const weekNumber = Math.ceil(d / 7);
-
-      const isOffDay = dayOfWeek === 0 || (dayOfWeek === 6 && [1, 3, 5].includes(weekNumber));
+      const isOffDay = isWeekendOffDay(dateObj, weekendPolicy);
       const holidayForDay = monthHolidays.find((h) => h.date.startsWith(dateStr));
       
       const isFullHoliday = holidayForDay && holidayForDay.durationMinutes === null;
@@ -307,12 +288,12 @@ export default function SalaryCalculatorModal({
     }
 
     const [year, month] = selectedMonth.split("-").map(Number);
-    const { sundays, offSaturdays } = getMonthWeekendOffs(year, month);
+    const { sundays, offSaturdays, daysInMonth } = getMonthWeekendOffs(year, month, weekendPolicy);
 
-    // Total Workable Days = Month days - Sundays - 1st/3rd/5th Saturdays - extraOffs
+    // Total Workable Days = Month days - Sundays - Off Saturdays - extraOffs
     const workableDays = Math.max(
       0.5,
-      getMonthWeekendOffs(year, month).daysInMonth - sundays - offSaturdays - extraOffs
+      daysInMonth - sundays - offSaturdays - extraOffs
     );
 
     // Total workable hours = workableDays * dailyDuration - reducedHours
@@ -614,7 +595,7 @@ Expected Total Salary: ₹${calculationResults.expectedTotal}`;
           >
             <RiInformationLine size={18} style={{ color: "var(--accent-primary)", flexShrink: 0, marginTop: "2px" }} />
             <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.4, margin: 0 }}>
-              Calculations assume a standard {dailyDuration}-hour workday. A monthly paid leave allowance of 1 day is factored. Taking 0 leaves awards a 1-day bonus payout. Sundays and 1st, 3rd, and 5th Saturdays are company off-days.
+              Calculations assume a standard {dailyDuration}-hour workday. A monthly paid leave allowance of 1 day is factored. Taking 0 leaves awards a 1-day bonus payout. Off-days are calculated based on your weekend policy.
             </p>
           </div>
 

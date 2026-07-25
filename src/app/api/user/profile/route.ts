@@ -23,6 +23,8 @@ export async function GET() {
         workHours: true,
         workMinutes: true,
         breakMinutes: true,
+        timezone: true,
+        useServerPolicy: true,
       },
     });
 
@@ -58,6 +60,8 @@ export async function PUT(req: Request) {
       workHours,
       workMinutes,
       breakMinutes,
+      timezone,
+      useServerPolicy,
     } = body;
 
     const updatedUser = await prisma.user.update({
@@ -76,6 +80,9 @@ export async function PUT(req: Request) {
         workHours: workHours !== undefined ? workHours : undefined,
         workMinutes: workMinutes !== undefined ? workMinutes : undefined,
         breakMinutes: breakMinutes !== undefined ? breakMinutes : undefined,
+        timezone: timezone !== undefined ? timezone : undefined,
+        useServerPolicy:
+          useServerPolicy !== undefined ? useServerPolicy : undefined,
       },
       select: {
         id: true,
@@ -89,6 +96,8 @@ export async function PUT(req: Request) {
         workHours: true,
         workMinutes: true,
         breakMinutes: true,
+        timezone: true,
+        useServerPolicy: true,
       },
     });
 
