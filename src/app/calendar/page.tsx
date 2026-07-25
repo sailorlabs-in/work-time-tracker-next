@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getWorkLogs, getUserProfile, getHolidays, getDayNotes } from "@/lib/api-services";
+import { getWorkLogs, getUserProfile, getHolidays, getDayNotes, getEffectiveWeekendPolicy } from "@/lib/api-services";
 import CalendarClient from "./_components/CalendarClient";
 
 export default async function CalendarPage() {
@@ -16,13 +16,15 @@ export default async function CalendarPage() {
   let userProfile = null;
   let holidays: Awaited<ReturnType<typeof getHolidays>> = [];
   let notes: Awaited<ReturnType<typeof getDayNotes>> = [];
+  let weekendPolicy = undefined;
 
   try {
-    [events, userProfile, holidays, notes] = await Promise.all([
+    [events, userProfile, holidays, notes, weekendPolicy] = await Promise.all([
       getWorkLogs(session.user.id),
       getUserProfile(session.user.id),
-      getHolidays(),
+      getHolidays(session.user.id),
       getDayNotes(session.user.id),
+      getEffectiveWeekendPolicy(session.user.id),
     ]);
   } catch {
     // Server unreachable — CalendarClient will fall back to cached data
@@ -39,6 +41,7 @@ export default async function CalendarPage() {
       initialNotes={notes}
       timeFormat={userProfile?.timeFormat || "12h"}
       workDurationMs={workDurationMs}
+      initialWeekendPolicy={weekendPolicy}
     />
   );
 }

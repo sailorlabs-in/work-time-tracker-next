@@ -11,6 +11,7 @@ import {
   RiDeleteBinLine,
   RiArrowRightLine,
 } from "@remixicon/react";
+import { WeekendPolicyData, DEFAULT_WEEKEND_POLICY, isWeekendOffDay } from "@/lib/weekendPolicy";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,7 @@ interface Props {
   workDurationMs?: number;
   holiday?: { name: string; durationMinutes: number | null };
   note?: string;
+  weekendPolicy?: WeekendPolicyData;
   onClose: () => void;
   onRefresh: () => void;
 }
@@ -97,6 +99,7 @@ export default function DayDetailModal({
   workDurationMs = 8 * 3600000,
   holiday,
   note,
+  weekendPolicy = DEFAULT_WEEKEND_POLICY,
   onClose,
   onRefresh,
 }: Props) {
@@ -238,10 +241,7 @@ export default function DayDetailModal({
 
   const [year, month, day] = date.split("-").map(Number);
   const dateObj = new Date(year, month - 1, day);
-  const dayOfWeek = dateObj.getDay();
-  const dateNum = dateObj.getDate();
-  const weekNumber = Math.ceil(dateNum / 7);
-  const isOffDay = dayOfWeek === 0 || (dayOfWeek === 6 && [1, 3, 5].includes(weekNumber));
+  const isOffDay = isWeekendOffDay(dateObj, weekendPolicy);
 
   const isFullDayHoliday = holiday && holiday.durationMinutes === null;
 

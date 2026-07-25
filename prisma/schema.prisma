@@ -28,6 +28,48 @@ model User {
   autoStoppedAt        DateTime?   // set by nightly cron when timer is auto-stopped
   sessionVersion       Int         @default(0)
   dayNotes             DayNote[]
+  timezone             String      @default("Asia/Kolkata")
+  useServerPolicy      Boolean     @default(true)
+  userWeekendPolicy    UserWeekendPolicy?
+  userHolidays         UserHoliday[]
+}
+
+// Global weekend policy managed by admin (single row)
+model WeekendPolicy {
+  id              String   @id @default(cuid())
+  sundayOff       Boolean  @default(true)
+  // "all" = every Sat off, "none" = no Sat off,
+  // "alternate_135" = 1st/3rd/5th off, "alternate_24" = 2nd/4th off,
+  // "custom" = use customSaturdays JSON
+  saturdayRule    String   @default("alternate_135")
+  // For "custom" rule: JSON array of week numbers that are off e.g. [1,3]
+  customSaturdays Json     @default("[]")
+  updatedAt       DateTime @updatedAt
+  updatedBy       String?  // admin who last changed it
+}
+
+// Per-user custom weekend policy (only used when user.useServerPolicy = false)
+model UserWeekendPolicy {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sundayOff       Boolean  @default(true)
+  saturdayRule    String   @default("alternate_135")
+  customSaturdays Json     @default("[]")
+  updatedAt       DateTime @updatedAt
+}
+
+// Per-user custom holidays (only used when user.useServerPolicy = false)
+model UserHoliday {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  date            DateTime
+  durationMinutes Int?     // null = full day
+  createdAt       DateTime @default(now())
+
+  @@index([userId, date])
 }
 
 model WorkLog {

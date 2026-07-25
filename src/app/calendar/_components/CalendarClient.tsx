@@ -14,6 +14,7 @@ import ManualEntryPanel from "./ManualEntryPanel";
 import SalaryCalculatorModal from "./SalaryCalculatorModal";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { RiWifiOffLine } from "@remixicon/react";
+import { WeekendPolicyData, DEFAULT_WEEKEND_POLICY, isWeekendOffDay } from "@/lib/weekendPolicy";
 
 const FullCalendar = dynamic<any>(
   () =>
@@ -103,6 +104,7 @@ interface CalendarClientProps {
   adminUserId?: string;
   timeFormat?: string;
   workDurationMs?: number;
+  initialWeekendPolicy?: WeekendPolicyData;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -162,6 +164,7 @@ export default function CalendarClient({
   adminUserId,
   timeFormat,
   workDurationMs = 8 * 3600000,
+  initialWeekendPolicy,
 }: CalendarClientProps) {
   const { isOnline, isServerReachable } = useOnlineStatus();
   const isOffline = !isOnline || !isServerReachable;
@@ -170,6 +173,9 @@ export default function CalendarClient({
   const [events, setEvents] = useState<CalendarEvent[]>(initialEvents);
   const [holidays, setHolidays] = useState<Holiday[]>(initialHolidays);
   const [notes, setNotes] = useState<DayNote[]>(initialNotes);
+  const [weekendPolicy, setWeekendPolicy] = useState<WeekendPolicyData>(
+    initialWeekendPolicy || DEFAULT_WEEKEND_POLICY
+  );
   const [dataLoading, setDataLoading] = useState(false);
   const [dayModalDate, setDayModalDate] = useState<string | null>(null);
   const [showManualModal, setShowManualModal] = useState(false);
@@ -276,7 +282,11 @@ export default function CalendarClient({
           url += `?${queryParams.join("&")}`;
         }
 
-        const holidayUrl = `/api/holidays${queryParams.length > 0 ? `?${queryParams.join("&")}` : ""}`;
+        const holidayUrlParams = [...queryParams];
+        if (adminUserId) {
+          holidayUrlParams.push(`userId=${encodeURIComponent(adminUserId)}`);
+        }
+        const holidayUrl = `/api/holidays${holidayUrlParams.length > 0 ? `?${holidayUrlParams.join("&")}` : ""}`;
         const notesUrl = `/api/notes${queryParams.length > 0 ? `?${queryParams.join("&")}` : ""}`;
 
         const [res, holRes, notesRes] = await Promise.all([
@@ -284,6 +294,32 @@ export default function CalendarClient({
           fetch(holidayUrl),
           fetch(notesUrl),
         ]);
+
+        // Also fetch effective weekend policy (not for admin views)
+        if (!adminUserId) {
+          try {
+            const policyUrl = `/api/user/effective-policy${queryParams.length > 0 ? `?${queryParams.join("&")}` : ""}`;
+            const policyRes = await fetch(policyUrl);
+            if (policyRes.ok) {
+              const policyData = await policyRes.json();
+              if (policyData.weekendPolicy) {
+                setWeekendPolicy(policyData.weekendPolicy);
+              }
+              // If the effective policy returns holidays, use those instead
+              if (policyData.holidays) {
+                const effectiveHolidays = policyData.holidays.map((h: Holiday) => ({
+                  id: h.id,
+                  name: h.name,
+                  date: h.date,
+                  durationMinutes: h.durationMinutes,
+                }));
+                setHolidays(effectiveHolidays);
+              }
+            }
+          } catch {
+            // Fall back to default policy
+          }
+        }
 
         let fetchedEvents: CalendarEvent[] = events;
         let fetchedHolidays: Holiday[] = holidays;
@@ -531,12 +567,8 @@ export default function CalendarClient({
             if (hol && hol.durationMinutes === null)
               return ["fc-unavailable-day"];
 
-            const day = arg.date.getDay();
-            if (day === 0) return ["fc-unavailable-day"];
-            if (day === 6) {
-              const weekNumber = Math.ceil(arg.date.getDate() / 7);
-              if ([1, 3, 5].includes(weekNumber)) return ["fc-unavailable-day"];
-            }
+            if (isWeekendOffDay(arg.date, weekendPolicy))
+              return ["fc-unavailable-day"];
             return [];
           }}
           eventDisplay="none"
@@ -555,10 +587,7 @@ export default function CalendarClient({
             let overtimeMs = 0;
             let earlyMs = 0;
 
-            const day = arg.date.getDay();
-            const weekNumber = Math.ceil(arg.date.getDate() / 7);
-            const isOffDay =
-              day === 0 || (day === 6 && [1, 3, 5].includes(weekNumber));
+            const isOffDay = isWeekendOffDay(arg.date, weekendPolicy);
             const isFullDayHoliday = hol && hol.durationMinutes === null;
 
             if (summary && summary.workMs > 60000) {
@@ -713,6 +742,7 @@ export default function CalendarClient({
           holiday={holidaysMap[dayModalDate]}
           workDurationMs={workDurationMs}
           note={notesMap[dayModalDate]}
+          weekendPolicy={weekendPolicy}
           onRefresh={() => {
             fetchLogs();
             setDayModalDate(null);
@@ -757,6 +787,7 @@ export default function CalendarClient({
           holidays={holidays}
           onClose={() => setShowSalaryModal(false)}
           workDurationMs={workDurationMs}
+          weekendPolicy={weekendPolicy}
         />
       )}
     </main>

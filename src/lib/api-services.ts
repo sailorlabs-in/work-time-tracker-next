@@ -50,6 +50,8 @@ export async function getUserProfile(userId: string) {
         notifyOnCompletion: true,
         notifyConstant: true,
         notifyInterval: true,
+        timezone: true,
+        useServerPolicy: true,
       }
     });
     return user;
@@ -59,7 +61,45 @@ export async function getUserProfile(userId: string) {
   }
 }
 
-export async function getHolidays(startDate?: string, endDate?: string) {
+export async function getEffectiveWeekendPolicy(userId: string) {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { useServerPolicy: true },
+    });
+
+    if (user?.useServerPolicy) {
+      const globalPolicy = await prisma.weekendPolicy.findFirst();
+      if (globalPolicy) {
+        return {
+          sundayOff: globalPolicy.sundayOff,
+          saturdayRule: globalPolicy.saturdayRule,
+          customSaturdays: globalPolicy.customSaturdays as number[],
+        };
+      }
+    } else {
+      const userPolicy = await prisma.userWeekendPolicy.findUnique({
+        where: { userId },
+      });
+      if (userPolicy) {
+        return {
+          sundayOff: userPolicy.sundayOff,
+          saturdayRule: userPolicy.saturdayRule,
+          customSaturdays: userPolicy.customSaturdays as number[],
+        };
+      }
+    }
+  } catch (error) {
+    console.error("Get effective weekend policy error:", error);
+  }
+  return { sundayOff: true, saturdayRule: "alternate_135", customSaturdays: [] };
+}
+
+export async function getHolidays(
+  userId?: string,
+  startDate?: string,
+  endDate?: string,
+) {
   try {
     const where: Record<string, unknown> = {};
 
@@ -71,6 +111,26 @@ export async function getHolidays(startDate?: string, endDate?: string) {
           gte: start,
           lte: end,
         };
+      }
+    }
+
+    if (userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { useServerPolicy: true },
+      });
+
+      if (user && !user.useServerPolicy) {
+        const userHolidays = await prisma.userHoliday.findMany({
+          where: { userId, ...where },
+          orderBy: { date: "desc" },
+        });
+
+        return userHolidays.map((h) => ({
+          ...h,
+          date: h.date.toISOString(),
+          createdAt: h.createdAt.toISOString(),
+        }));
       }
     }
 

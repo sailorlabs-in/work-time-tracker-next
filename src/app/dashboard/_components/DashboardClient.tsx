@@ -31,6 +31,7 @@ import OfflineBanner from "@/components/OfflineBanner";
 import { ConfirmationModal } from "@/app/calendar/_components/DayDetailModal";
 import TodayNotificationsCard from "./TodayNotificationsCard";
 import DailyNoteCard from "./DailyNoteCard";
+import { useServerTime } from "@/hooks/useServerTime";
 
 interface UserProfile {
   timeFormat?: string;
@@ -489,6 +490,8 @@ export default function DashboardClient({
   initialTimerState,
   userProfile,
 }: DashboardClientProps) {
+  const { getServerNow, isSynced: isTimeSynced } = useServerTime();
+
   const {
     state,
     totalWork,
@@ -511,7 +514,7 @@ export default function DashboardClient({
     addCustomNotification,
     deleteCustomNotification,
     formatTime: ft,
-  } = useWorkTimer(initialTimerState, userProfile);
+  } = useWorkTimer(initialTimerState, userProfile, getServerNow);
 
   const [workHours, setWorkHours] = useState(userProfile?.workHours ?? 8);
   const [workMinutes, setWorkMinutes] = useState(userProfile?.workMinutes ?? 0);
