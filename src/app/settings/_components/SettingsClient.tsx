@@ -746,23 +746,6 @@ export default function SettingsClient() {
             {/* Custom Weekend Policy - shown when useServerPolicy is OFF */}
             {!useServerPolicy && (
               <>
-                <div className="settings-row">
-                  <div className="settings-row-info">
-                    <label>Sunday Off</label>
-                    <p>Mark all Sundays as off-days.</p>
-                  </div>
-                  <div className="settings-row-control" style={{ justifyContent: "flex-end" }}>
-                    <label className="toggle-wrapper" style={{ margin: 0 }}>
-                      <input
-                        type="checkbox"
-                        className="toggle-checkbox"
-                        checked={customSundayOff}
-                        onChange={(e) => setCustomSundayOff(e.target.checked)}
-                      />
-                      <div className="toggle-slider"></div>
-                    </label>
-                  </div>
-                </div>
 
                 <div className="settings-row">
                   <div className="settings-row-info">
@@ -843,7 +826,7 @@ export default function SettingsClient() {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
-                        sundayOff: customSundayOff,
+                        sundayOff: true,
                         saturdayRule: customSaturdayRule,
                         customSaturdays,
                       }),

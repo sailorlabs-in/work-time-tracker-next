@@ -614,13 +614,13 @@ export default function DashboardClient({
 
   useEffect(() => {
     const updateTime = () => {
-      const now = Date.now();
+      const now = getServerNow ? getServerNow() : Date.now();
       setTimeStr(
         new Date(now).toLocaleTimeString([], { hour12: timeFormat === "12h" }),
       );
 
       if (remainingWork) {
-        const targetTime = now + remainingWork;
+        const targetTime = now + remainingWork + 60000;
         setLeaveTimeStr(
           new Date(targetTime).toLocaleTimeString([], {
             hour: "2-digit",
@@ -757,25 +757,28 @@ export default function DashboardClient({
         />
       )}
 
-      {editingSessionIdx !== null && (() => {
-        const session = buildSessionRows(state.logs, state.status)[editingSessionIdx];
-        if (!session) return null;
-        return (
-          <EditSessionModal
-            session={session}
-            index={editingSessionIdx}
-            onClose={() => setEditingSessionIdx(null)}
-            onSubmit={(inStr, outStr) => {
-              updateSession(
-                editingSessionIdx,
-                timeStrToMs(inStr, session.punchIn),
-                outStr ? timeStrToMs(outStr, session.punchIn) : null,
-              );
-              setEditingSessionIdx(null);
-            }}
-          />
-        );
-      })()}
+      {editingSessionIdx !== null &&
+        (() => {
+          const session = buildSessionRows(state.logs, state.status)[
+            editingSessionIdx
+          ];
+          if (!session) return null;
+          return (
+            <EditSessionModal
+              session={session}
+              index={editingSessionIdx}
+              onClose={() => setEditingSessionIdx(null)}
+              onSubmit={(inStr, outStr) => {
+                updateSession(
+                  editingSessionIdx,
+                  timeStrToMs(inStr, session.punchIn),
+                  outStr ? timeStrToMs(outStr, session.punchIn) : null,
+                );
+                setEditingSessionIdx(null);
+              }}
+            />
+          );
+        })()}
 
       <div className={`main-content${state.isActive ? " dashboard-page" : ""}`}>
         {!state.isActive ? (
