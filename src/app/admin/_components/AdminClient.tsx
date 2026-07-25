@@ -644,88 +644,94 @@ function ManageHolidaysTab() {
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {/* Global Weekend Policy Card */}
       <div className="glass-card animate-in">
-        <h2>Global Weekend Off Policy</h2>
-        <p className="text-muted" style={{ marginBottom: "20px" }}>
+        <h2 style={{ fontSize: "1.3rem", fontWeight: 700, marginBottom: "4px" }}>
+          Global Weekend Off Policy
+        </h2>
+        <p className="text-muted" style={{ marginBottom: "20px", fontSize: "0.9rem" }}>
           Configure the company-wide weekend off policy for users following server settings.
         </p>
 
         {policyMsg && (
-          <div className="dm-message dm-message-success" style={{ marginBottom: "16px" }}>
+          <div className="dm-message dm-message-success" style={{ marginBottom: "20px" }}>
             <RiCheckLine size={18} /> {policyMsg}
           </div>
         )}
 
-        <form onSubmit={async (e) => {
-          e.preventDefault();
-          setSavingPolicy(true);
-          setPolicyMsg("");
-          try {
-            const res = await fetch("/api/admin/weekend-policy", {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sundayOff, saturdayRule, customSaturdays }),
-            });
-            if (res.ok) {
-              setPolicyMsg("Weekend policy saved successfully!");
-            } else {
-              alert("Failed to update policy");
+        <form
+          className="manage-holidays-form"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setSavingPolicy(true);
+            setPolicyMsg("");
+            try {
+              const res = await fetch("/api/admin/weekend-policy", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sundayOff: true, saturdayRule, customSaturdays }),
+              });
+              if (res.ok) {
+                setPolicyMsg("Weekend policy saved successfully!");
+              } else {
+                alert("Failed to update policy");
+              }
+            } catch {
+              alert("Error saving policy");
+            } finally {
+              setSavingPolicy(false);
             }
-          } catch {
-            alert("Error saving policy");
-          } finally {
-            setSavingPolicy(false);
-          }
-        }}>
-          <div className="holidays-form-row">
-            <div className="form-group">
-              <label>Sunday Off Policy</label>
-              <label className="toggle-wrapper" style={{ margin: "8px 0" }}>
-                <input
-                  type="checkbox"
-                  className="toggle-checkbox"
-                  checked={sundayOff}
-                  onChange={(e) => setSundayOff(e.target.checked)}
-                />
-                <div className="toggle-slider"></div>
-                <span style={{ marginLeft: "12px", fontSize: "0.95rem" }}>
-                  {sundayOff ? "Sundays are OFF" : "Sundays are Working"}
-                </span>
-              </label>
-            </div>
-
-            <div className="form-group">
-              <label>Saturday Off Rule</label>
-              <select
-                value={saturdayRule}
-                onChange={(e) => {
-                  setSaturdayRule(e.target.value);
-                  if (e.target.value !== "custom") setCustomSaturdays([]);
-                }}
-                style={{
-                  width: "100%",
-                  padding: "10px 14px",
-                  borderRadius: "10px",
-                  border: "1px solid var(--card-border)",
-                  background: "var(--input-bg)",
-                  color: "var(--text-main)",
-                  fontSize: "0.95rem",
-                }}
-              >
-                <option value="all">Every Saturday Off</option>
-                <option value="none">No Saturdays Off</option>
-                <option value="alternate_135">1st, 3rd &amp; 5th Saturdays Off</option>
-                <option value="alternate_24">2nd &amp; 4th Saturdays Off</option>
-                <option value="custom">Custom Saturdays (select week #)</option>
-              </select>
-            </div>
+          }}
+        >
+          <div className="form-group" style={{ marginBottom: "16px" }}>
+            <label style={{ display: "block", marginBottom: "8px" }}>Saturday Off Rule</label>
+            <select
+              value={saturdayRule}
+              onChange={(e) => {
+                setSaturdayRule(e.target.value);
+                if (e.target.value !== "custom") setCustomSaturdays([]);
+              }}
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: "10px",
+                border: "1px solid var(--card-border)",
+                background: "var(--input-bg)",
+                color: "var(--text-main)",
+                fontSize: "0.95rem",
+                minHeight: "44px",
+                outline: "none",
+              }}
+            >
+              <option value="all">Every Saturday Off</option>
+              <option value="none">No Saturdays Off</option>
+              <option value="alternate_135">1st, 3rd &amp; 5th Saturdays Off</option>
+              <option value="alternate_24">2nd &amp; 4th Saturdays Off</option>
+              <option value="custom">Custom Saturdays (select week #)</option>
+            </select>
           </div>
 
           {saturdayRule === "custom" && (
-            <div className="form-group" style={{ marginBottom: "16px" }}>
-              <label>Select Off Saturdays (Week # of Month)</label>
-              <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginTop: "8px" }}>
+            <div className="form-group" style={{ marginTop: "16px", marginBottom: "16px" }}>
+              <label style={{ display: "block", marginBottom: "10px" }}>Select Off Saturdays (Week # of Month)</label>
+              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                 {[1, 2, 3, 4, 5].map((w) => (
-                  <label key={w} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
+                  <label
+                    key={w}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "8px 14px",
+                      borderRadius: "8px",
+                      border: "1px solid var(--card-border)",
+                      background: customSaturdays.includes(w) ? "rgba(99, 102, 241, 0.15)" : "var(--input-bg)",
+                      borderColor: customSaturdays.includes(w) ? "var(--accent-primary)" : "var(--card-border)",
+                      color: customSaturdays.includes(w) ? "var(--accent-primary)" : "var(--text-main)",
+                      fontSize: "0.9rem",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
                     <input
                       type="checkbox"
                       checked={customSaturdays.includes(w)}
@@ -736,6 +742,7 @@ function ManageHolidaysTab() {
                           setCustomSaturdays((prev) => prev.filter((v) => v !== w));
                         }
                       }}
+                      style={{ width: "auto", margin: 0, cursor: "pointer" }}
                     />
                     Week {w} Saturday
                   </label>
@@ -744,8 +751,13 @@ function ManageHolidaysTab() {
             </div>
           )}
 
-          <div className="form-actions" style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button type="submit" className="btn-primary" disabled={savingPolicy} style={{ padding: "10px 20px" }}>
+          <div className="form-actions" style={{ display: "flex", justifyContent: "flex-end", marginTop: "20px" }}>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={savingPolicy}
+              style={{ padding: "10px 24px", fontSize: "0.95rem", fontWeight: 600 }}
+            >
               {savingPolicy ? "Saving Policy..." : "Save Weekend Policy"}
             </button>
           </div>
