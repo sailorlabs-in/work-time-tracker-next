@@ -26,6 +26,8 @@ import {
   RiDeleteBinLine,
   RiEdit2Line,
   RiFlagLine,
+  RiTimerLine,
+  RiCloseLine,
 } from "@remixicon/react";
 import OfflineBanner from "@/components/OfflineBanner";
 import { ConfirmationModal } from "@/app/calendar/_components/DayDetailModal";
@@ -69,8 +71,8 @@ function fmtTime(ms: number, format: "12h" | "24h" = "12h"): string {
   });
 }
 
-function getOtMinutes(totalWorkMs: number): number {
-  const standardWorkMs = 8 * 3600000;
+function getOtMinutes(totalWorkMs: number, targetWorkMs?: number): number {
+  const standardWorkMs = targetWorkMs || 8 * 3600000;
   if (totalWorkMs < standardWorkMs) return 0;
   const overtimeMin = Math.floor((totalWorkMs - standardWorkMs) / 60000);
   if (overtimeMin < 30) return 0;
@@ -84,6 +86,153 @@ function formatOtMinutes(minutes: number): string {
   if (h === 0) return `${m}min Overtime`;
   if (m === 0) return `${h}hr Overtime`;
   return `${h}hr ${m} min Overtime`;
+}
+
+// ─── OT Milestones calculation ────────────────────────────────
+interface OtMilestone {
+  label: string;
+  otMinutes: number;
+  thresholdMs: number;
+  clockTime: string | null; // null if already passed
+  isPassed: boolean;
+}
+
+function computeOtMilestones(
+  totalWorkMs: number,
+  targetWorkMs: number,
+  currentTime: number,
+  isWorking: boolean,
+  timeFormat: "12h" | "24h",
+): OtMilestone[] {
+  const tiers = [
+    { label: "Work Complete", otMinutes: 0, thresholdMs: targetWorkMs },
+    {
+      label: "30min Overtime",
+      otMinutes: 30,
+      thresholdMs: targetWorkMs + 30 * 60000,
+    },
+    {
+      label: "1hr Overtime",
+      otMinutes: 60,
+      thresholdMs: targetWorkMs + 45 * 60000,
+    },
+    {
+      label: "1hr 30min Overtime",
+      otMinutes: 90,
+      thresholdMs: targetWorkMs + 75 * 60000,
+    },
+    {
+      label: "2hr Overtime",
+      otMinutes: 120,
+      thresholdMs: targetWorkMs + 105 * 60000,
+    },
+    {
+      label: "2hr 30min Overtime",
+      otMinutes: 150,
+      thresholdMs: targetWorkMs + 135 * 60000,
+    },
+  ];
+
+  return tiers.map((tier) => {
+    const isPassed = totalWorkMs >= tier.thresholdMs;
+    let clockTime: string | null = null;
+
+    if (isPassed) {
+      // Already passed — show when it was achieved (approximate)
+      clockTime = "Completed";
+    } else if (isWorking) {
+      // Only calculate future time when currently working
+      const msRemaining = tier.thresholdMs - totalWorkMs;
+      const futureMs = currentTime + msRemaining;
+      clockTime = new Date(futureMs).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: timeFormat === "12h",
+      });
+    } else {
+      // On break — can't predict
+      clockTime = "On Break";
+    }
+
+    return { ...tier, clockTime, isPassed };
+  });
+}
+
+// ─── Modal: OT Milestones ────────────────────────────────────
+interface OtMilestonesModalProps {
+  onClose: () => void;
+  milestones: OtMilestone[];
+  currentOtMinutes: number;
+}
+
+function OtMilestonesModal({
+  onClose,
+  milestones,
+  currentOtMinutes,
+}: OtMilestonesModalProps) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-card ot-milestones-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header-centered">
+          <span className="modal-icon">
+            <RiTimerLine size={28} />
+          </span>
+          <h2>OT Milestones</h2>
+          <p className="modal-subtitle">
+            {currentOtMinutes > 0
+              ? `Current: ${formatOtMinutes(currentOtMinutes)}`
+              : "Work completion & overtime schedule"}
+          </p>
+        </div>
+
+        <div className="ot-milestones-list">
+          {milestones.map((m, i) => (
+            <div
+              key={i}
+              className={`ot-milestone-row${
+                m.isPassed ? " ot-milestone-passed" : ""
+              }${i === 0 ? " ot-milestone-work-complete" : ""}`}
+            >
+              <div className="ot-milestone-indicator">
+                <span
+                  className={`ot-milestone-dot${m.isPassed ? " passed" : ""}`}
+                />
+                {i < milestones.length - 1 && (
+                  <span className="ot-milestone-line" />
+                )}
+              </div>
+              <div className="ot-milestone-info">
+                <span className="ot-milestone-label">{m.label}</span>
+                <span className="ot-milestone-sublabel">
+                  {i === 0
+                    ? formatShortTime(m.thresholdMs) + " worked"
+                    : `+${formatShortTime(m.thresholdMs - milestones[0].thresholdMs)} after completion`}
+                </span>
+              </div>
+              <div className="ot-milestone-time mono">
+                {m.isPassed ? (
+                  <span className="ot-milestone-check">
+                    <RiCheckLine size={16} />
+                  </span>
+                ) : (
+                  <span>{m.clockTime}</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="modal-footer" style={{ paddingTop: "16px" }}>
+          <button className="btn-secondary btn-full" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Build tabular session rows from log ─────────────────────
@@ -397,19 +546,27 @@ function SessionPanel({
   currentTime,
   onEdit,
   onDelete,
+  onOpenOtModal,
 }: {
   logs: TimerLog[];
   status: TimerStatus;
   currentTime: number;
   onEdit: (index: number) => void;
   onDelete: (index: number) => void;
+  onOpenOtModal: () => void;
 }) {
   const rows = buildSessionRows(logs, status);
 
   return (
     <div className="session-panel glass-card animate-in">
       <div className="session-panel-header">
-        <RiTimeLine className="session-panel-icon" size={20} />
+        <button
+          className="session-panel-icon-btn"
+          onClick={onOpenOtModal}
+          title="View OT Milestones"
+        >
+          <RiTimeLine className="session-panel-icon" size={20} />
+        </button>
         <span className="session-panel-title">Today&apos;s Sessions</span>
         <span className="session-panel-count">{rows.length}</span>
       </div>
@@ -536,6 +693,7 @@ export default function DashboardClient({
   const [lastSyncedStr, setLastSyncedStr] = useState<string>("");
   const [nextOtTimeStr, setNextOtTimeStr] = useState<string>("");
   const [showSecretOt, setShowSecretOt] = useState(false);
+  const [showOtMilestonesModal, setShowOtMilestonesModal] = useState(false);
   const secretTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [showBreakModal, setShowBreakModal] = useState(false);
@@ -637,23 +795,28 @@ export default function DashboardClient({
         );
       }
 
-      const standardWorkMs = 8 * 3600000;
-      const currentOtMin = getOtMinutes(totalWork);
+      const standardWorkMs = state.targetWorkMs || 8 * 3600000;
+      const currentOtMin = getOtMinutes(totalWork, standardWorkMs);
       const nextTierMin = currentOtMin === 0 ? 30 : currentOtMin + 30;
       const nextOtThresholdMs =
         nextTierMin === 30
           ? standardWorkMs + 30 * 60000
           : standardWorkMs + (nextTierMin - 15) * 60000;
 
-      const msUntilNextOt = nextOtThresholdMs - totalWork;
-      const nextOtClockTime = now + msUntilNextOt;
-      setNextOtTimeStr(
-        new Date(nextOtClockTime).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: timeFormat === "12h",
-        }),
-      );
+      // Only calculate next OT time when actively working
+      if (state.status === "working") {
+        const msUntilNextOt = nextOtThresholdMs - totalWork;
+        const nextOtClockTime = now + msUntilNextOt;
+        setNextOtTimeStr(
+          new Date(nextOtClockTime).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: timeFormat === "12h",
+          }),
+        );
+      } else {
+        setNextOtTimeStr("On Break");
+      }
 
       if (state.startTime) {
         setStartTimeStr(
@@ -904,9 +1067,9 @@ export default function DashboardClient({
                   ) : (
                     <>
                       <span className="leave-time-label">
-                        {getOtMinutes(totalWork) === 0
+                        {getOtMinutes(totalWork, state.targetWorkMs) === 0
                           ? `${formatOtMinutes(30)} starts at`
-                          : `${formatOtMinutes(getOtMinutes(totalWork) + 30)} at`}
+                          : `${formatOtMinutes(getOtMinutes(totalWork, state.targetWorkMs) + 30)} at`}
                       </span>
                       <span className="leave-time-value mono">
                         {nextOtTimeStr}
@@ -1066,6 +1229,7 @@ export default function DashboardClient({
                 currentTime={currentTime}
                 onEdit={(idx) => setEditingSessionIdx(idx)}
                 onDelete={(idx) => setPendingDeleteSessionIdx(idx)}
+                onOpenOtModal={() => setShowOtMilestonesModal(true)}
               />
 
               <DailyNoteCard
@@ -1083,6 +1247,21 @@ export default function DashboardClient({
           </div>
         )}
       </div>
+
+      {/* OT Milestones Modal */}
+      {showOtMilestonesModal && (
+        <OtMilestonesModal
+          onClose={() => setShowOtMilestonesModal(false)}
+          milestones={computeOtMilestones(
+            totalWork,
+            state.targetWorkMs,
+            currentTime,
+            state.status === "working",
+            timeFormat,
+          )}
+          currentOtMinutes={getOtMinutes(totalWork, state.targetWorkMs)}
+        />
+      )}
 
       {/* Confirmation Modal for delete session */}
       {pendingDeleteSessionIdx !== null && (
