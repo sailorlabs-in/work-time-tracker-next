@@ -36,6 +36,19 @@
   border-bottom: 1px solid var(--card-border);
 }
 
+.session-panel-icon-btn {
+  background: none;
+  border: 1px solid transparent;
+  padding: 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+
 .session-panel-icon {
   font-size: 1.1rem;
   color: var(--accent-primary);
@@ -809,4 +822,131 @@
   .btn-terminate {
     justify-content: center;
   }
+}
+
+/* ═══════════════════════════════════════════════
+   OT MILESTONES MODAL
+   ═══════════════════════════════════════════════ */
+
+.ot-milestones-modal {
+  max-width: 420px;
+}
+
+.ot-milestones-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.ot-milestone-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 4px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition);
+}
+
+.ot-milestone-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  min-height: 40px;
+  width: 18px;
+  flex-shrink: 0;
+}
+
+.ot-milestone-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--text-dim);
+  background: transparent;
+  z-index: 1;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.ot-milestone-dot.passed {
+  border-color: var(--success, #2eae5b);
+  background: var(--success, #2eae5b);
+  box-shadow: 0 0 8px rgba(46, 174, 91, 0.4);
+}
+
+.ot-milestone-line {
+  width: 2px;
+  flex: 1;
+  min-height: 16px;
+  background: var(--card-border);
+  margin-top: 4px;
+}
+
+.ot-milestone-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.ot-milestone-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.ot-milestone-sublabel {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.ot-milestone-time {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  text-align: right;
+  min-width: 70px;
+}
+
+.ot-milestone-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--success-bg, rgba(46, 174, 91, 0.12));
+  color: var(--success, #2eae5b);
+  margin-left: auto;
+}
+
+.ot-milestone-passed .ot-milestone-label {
+  color: var(--success, #2eae5b);
+}
+
+.ot-milestone-passed .ot-milestone-time {
+  color: var(--success, #2eae5b);
+}
+
+.ot-milestone-work-complete {
+  padding-bottom: 14px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.ot-milestone-work-complete .ot-milestone-dot {
+  width: 14px;
+  height: 14px;
+  border-width: 3px;
+}
+
+.ot-milestone-work-complete .ot-milestone-dot:not(.passed) {
+  border-color: var(--accent-primary);
+}
+
+.ot-milestone-work-complete .ot-milestone-label {
+  font-size: 0.92rem;
+  font-weight: 700;
 }
