@@ -9,10 +9,12 @@ import {
   RiCheckLine,
   RiErrorWarningLine,
   RiCalendarEventLine,
+  RiRefreshLine,
+  RiDatabase2Line,
 } from "@remixicon/react";
 import CalendarClient from "@/app/calendar/_components/CalendarClient";
 
-type Tab = "timelogs" | "notifications" | "admins" | "holidays";
+type Tab = "timelogs" | "notifications" | "admins" | "holidays" | "sync";
 
 type AdminUser = {
   id: string;
@@ -77,6 +79,12 @@ export default function AdminClient({
         >
           <RiCalendarEventLine size={18} /> Holidays
         </button>
+        <button
+          className={`tab-btn ${activeTab === "sync" ? "active" : ""}`}
+          onClick={() => setActiveTab("sync")}
+        >
+          <RiDatabase2Line size={18} /> Database Sync
+        </button>
       </div>
 
       <div className="admin-content">
@@ -84,6 +92,7 @@ export default function AdminClient({
         {activeTab === "notifications" && <PushNotificationsTab />}
         {activeTab === "admins" && <AdminsTab currentUserId={currentUserId} />}
         {activeTab === "holidays" && <ManageHolidaysTab />}
+        {activeTab === "sync" && <DatabaseSyncTab />}
       </div>
     </div>
   );
@@ -909,3 +918,311 @@ function ManageHolidaysTab() {
     </div>
   );
 }
+
+function DatabaseSyncTab() {
+  const [direction, setDirection] = useState<"prod-to-dev" | "dev-to-prod">("prod-to-dev");
+  const [syncMode, setSyncMode] = useState<"24h" | "range" | "full">("24h");
+
+  const todayStr = new Date().toISOString().split("T")[0];
+  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+
+  const [startDate, setStartDate] = useState(yesterdayStr);
+  const [endDate, setEndDate] = useState(todayStr);
+
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<{
+    type: "success" | "error" | "";
+    text: string;
+    details?: any;
+  }>({ type: "", text: "" });
+
+  const handleSyncTrigger = async () => {
+    const dirLabel =
+      direction === "prod-to-dev"
+        ? "Production → Development"
+        : "Development → Production";
+    const modeLabel =
+      syncMode === "24h"
+        ? "Last 24 Hours data"
+        : syncMode === "range"
+        ? `Custom Range (${startDate} to ${endDate})`
+        : "FULL Database (All records)";
+
+    if (
+      !confirm(
+        `Are you sure you want to trigger database synchronization?\n\n` +
+          `Direction: ${dirLabel}\n` +
+          `Scope: ${modeLabel}\n\n` +
+          (syncMode === "full"
+            ? "⚠️ WARNING: Full sync will overwrite target database tables!"
+            : "This will migrate matching records into the target database.")
+      )
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    setStatus({ type: "", text: "" });
+
+    try {
+      const payload: any = {
+        direction,
+        fullSync: syncMode === "full",
+      };
+
+      if (syncMode === "range") {
+        payload.startDate = startDate;
+        payload.endDate = endDate;
+      }
+
+      const res = await fetch("/api/cron/sync-db", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        setStatus({
+          type: "error",
+          text: data.error || "Database synchronization failed",
+          details: data,
+        });
+      } else {
+        setStatus({
+          type: "success",
+          text: data.message || "Database synchronization completed successfully!",
+          details: data,
+        });
+      }
+    } catch (err: any) {
+      setStatus({
+        type: "error",
+        text: "Failed to communicate with sync endpoint",
+        details: { details: err?.message || String(err) },
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="glass-card animate-in" style={{ padding: "32px", maxWidth: "800px" }}>
+      <div style={{ marginBottom: "24px" }}>
+        <h2
+          style={{
+            fontSize: "1.5rem",
+            marginBottom: "8px",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+          }}
+        >
+          <RiDatabase2Line size={24} color="var(--accent-primary)" />
+          Database Sync & Migration
+        </h2>
+        <p className="text-muted">
+          Migrate data between Production and Development databases with customizable range options.
+        </p>
+      </div>
+
+      {status.text && (
+        <div
+          className={`dm-message dm-message-${status.type}`}
+          style={{
+            marginBottom: "24px",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            gap: "8px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 600 }}>
+            {status.type === "error" ? <RiErrorWarningLine size={20} /> : <RiCheckLine size={20} />}
+            {status.text}
+          </div>
+          {status.details?.details && (
+            <div style={{ fontSize: "0.85rem", opacity: 0.9 }}>{status.details.details}</div>
+          )}
+          {status.details?.syncedCounts && (
+            <div
+              style={{
+                marginTop: "8px",
+                padding: "12px",
+                background: "rgba(0,0,0,0.1)",
+                borderRadius: "8px",
+                width: "100%",
+                fontSize: "0.85rem",
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: "6px" }}>Synced Records Summary:</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "8px" }}>
+                <div>👥 Users: {status.details.syncedCounts.users}</div>
+                <div>⏱️ Work Logs: {status.details.syncedCounts.workLogs}</div>
+                <div>⌛ Timer States: {status.details.syncedCounts.timerStates}</div>
+                <div>📝 Day Notes: {status.details.syncedCounts.dayNotes}</div>
+                <div>🎉 Holidays: {status.details.syncedCounts.holidays}</div>
+                <div>🔔 Notifications: {status.details.syncedCounts.notifications}</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Sync Direction Selection */}
+      <div className="form-group" style={{ marginBottom: "28px" }}>
+        <label style={{ fontWeight: 600, fontSize: "0.95rem", display: "block", marginBottom: "12px" }}>
+          1. Select Sync Direction
+        </label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+          <div
+            onClick={() => setDirection("prod-to-dev")}
+            style={{
+              padding: "16px",
+              borderRadius: "12px",
+              border: "2px solid",
+              borderColor: direction === "prod-to-dev" ? "var(--accent-primary)" : "var(--card-border)",
+              background: direction === "prod-to-dev" ? "rgba(99, 102, 241, 0.08)" : "var(--input-bg)",
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+            }}
+          >
+            <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--text-main)", marginBottom: "4px" }}>
+              Prod → Dev
+            </div>
+            <div style={{ fontSize: "0.85rem" }} className="text-muted">
+              Copy live production data to development/backup database
+            </div>
+          </div>
+
+          <div
+            onClick={() => setDirection("dev-to-prod")}
+            style={{
+              padding: "16px",
+              borderRadius: "12px",
+              border: "2px solid",
+              borderColor: direction === "dev-to-prod" ? "var(--accent-primary)" : "var(--card-border)",
+              background: direction === "dev-to-prod" ? "rgba(99, 102, 241, 0.08)" : "var(--input-bg)",
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+            }}
+          >
+            <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--text-main)", marginBottom: "4px" }}>
+              Dev → Prod
+            </div>
+            <div style={{ fontSize: "0.85rem" }} className="text-muted">
+              Copy dev/backup database data to production database
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Sync Scope Selection */}
+      <div className="form-group" style={{ marginBottom: "28px" }}>
+        <label style={{ fontWeight: 600, fontSize: "0.95rem", display: "block", marginBottom: "12px" }}>
+          2. Select Date Range Scope
+        </label>
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
+          {[
+            { id: "24h", label: "Last 24 Hours (Default)" },
+            { id: "range", label: "Custom Date Range" },
+            { id: "full", label: "Full Database Sync" },
+          ].map((mode) => (
+            <button
+              key={mode.id}
+              type="button"
+              onClick={() => setSyncMode(mode.id as any)}
+              className={syncMode === mode.id ? "btn-primary" : "btn-secondary"}
+              style={{ padding: "10px 18px", fontSize: "0.9rem" }}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </div>
+
+        {syncMode === "range" && (
+          <div
+            className="animate-in"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "16px",
+              padding: "16px",
+              borderRadius: "12px",
+              border: "1px solid var(--card-border)",
+              background: "var(--input-bg)",
+            }}
+          >
+            <div>
+              <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "6px" }}>
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--card-border)",
+                  background: "var(--bg-main)",
+                  color: "var(--text-main)",
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: "0.85rem", fontWeight: 600, display: "block", marginBottom: "6px" }}>
+                End Date
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--card-border)",
+                  background: "var(--bg-main)",
+                  color: "var(--text-main)",
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Action Button */}
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <button
+          type="button"
+          onClick={handleSyncTrigger}
+          className="btn-primary"
+          disabled={loading}
+          style={{
+            padding: "12px 28px",
+            fontSize: "1rem",
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+          }}
+        >
+          {loading ? (
+            <>
+              <span className="spinner" style={{ width: "20px", height: "20px" }}></span>
+              Syncing Database...
+            </>
+          ) : (
+            <>
+              <RiRefreshLine size={20} />
+              Trigger One-Click Sync
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
