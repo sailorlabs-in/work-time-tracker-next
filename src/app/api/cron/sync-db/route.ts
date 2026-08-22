@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
+
+interface SyncRequestBody {
+  direction?: "prod-to-dev" | "dev-to-prod";
+  fullSync?: boolean;
+  startDate?: string;
+  endDate?: string;
+}
 
 function getPrismaForUrl(connectionString: string): PrismaClient {
   const adapter = new PrismaPg({ connectionString });
@@ -51,9 +58,9 @@ export async function POST(req: Request) {
   }
 
   // 2. Parse request body options (if any)
-  let body: any = {};
+  let body: SyncRequestBody = {};
   try {
-    body = await req.json();
+    body = (await req.json()) as SyncRequestBody;
   } catch {
     // Body is optional (e.g. cron triggers without body)
   }
@@ -125,11 +132,27 @@ export async function POST(req: Request) {
 
         targetPrisma.user.createMany({ data: users }),
         targetPrisma.holiday.createMany({ data: holidays }),
-        targetPrisma.weekendPolicy.createMany({ data: weekendPolicies as any[] }),
-        targetPrisma.userWeekendPolicy.createMany({ data: userWeekendPolicies as any[] }),
+        targetPrisma.weekendPolicy.createMany({
+          data: weekendPolicies.map((wp) => ({
+            ...wp,
+            customSaturdays: wp.customSaturdays as Prisma.InputJsonValue,
+          })),
+        }),
+        targetPrisma.userWeekendPolicy.createMany({
+          data: userWeekendPolicies.map((uwp) => ({
+            ...uwp,
+            customSaturdays: uwp.customSaturdays as Prisma.InputJsonValue,
+          })),
+        }),
         targetPrisma.userHoliday.createMany({ data: userHolidays }),
         targetPrisma.workLog.createMany({ data: workLogs }),
-        targetPrisma.timerState.createMany({ data: timerStates as any[] }),
+        targetPrisma.timerState.createMany({
+          data: timerStates.map((ts) => ({
+            ...ts,
+            logs: ts.logs as Prisma.InputJsonValue,
+            customNotifications: ts.customNotifications as Prisma.InputJsonValue,
+          })),
+        }),
         targetPrisma.notification.createMany({ data: notifications }),
         targetPrisma.dayNote.createMany({ data: dayNotes }),
       ]);
@@ -260,54 +283,79 @@ export async function POST(req: Request) {
 
     // Upsert target DB in parent -> child dependency order
     for (const u of users) {
-      await targetPrisma.user.upsert({
-        where: { id: u.id },
-        create: u,
-        update: {
-          name: u.name,
-          email: u.email,
-          password: u.password,
-          isAdmin: u.isAdmin,
-          notificationsEnabled: u.notificationsEnabled,
-          notifyOnCompletion: u.notifyOnCompletion,
-          notifyConstant: u.notifyConstant,
-          notifyInterval: u.notifyInterval,
-          timeFormat: u.timeFormat,
-          workHours: u.workHours,
-          workMinutes: u.workMinutes,
-          breakMinutes: u.breakMinutes,
-          createdAt: u.createdAt,
-          autoStoppedAt: u.autoStoppedAt,
-          sessionVersion: u.sessionVersion,
-          timezone: u.timezone,
-          useServerPolicy: u.useServerPolicy,
-        },
+      const existingUser = await targetPrisma.user.findFirst({
+        where: { OR: [{ id: u.id }, { email: u.email }] },
       });
+
+      if (existingUser) {
+        await targetPrisma.user.update({
+          where: { id: existingUser.id },
+          data: {
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            password: u.password,
+            isAdmin: u.isAdmin,
+            notificationsEnabled: u.notificationsEnabled,
+            notifyOnCompletion: u.notifyOnCompletion,
+            notifyConstant: u.notifyConstant,
+            notifyInterval: u.notifyInterval,
+            timeFormat: u.timeFormat,
+            workHours: u.workHours,
+            workMinutes: u.workMinutes,
+            breakMinutes: u.breakMinutes,
+            createdAt: u.createdAt,
+            autoStoppedAt: u.autoStoppedAt,
+            sessionVersion: u.sessionVersion,
+            timezone: u.timezone,
+            useServerPolicy: u.useServerPolicy,
+          },
+        });
+      } else {
+        await targetPrisma.user.create({
+          data: u,
+        });
+      }
     }
 
     for (const wp of weekendPolicies) {
-      await targetPrisma.weekendPolicy.upsert({
-        where: { id: wp.id },
-        create: wp as any,
-        update: {
-          sundayOff: wp.sundayOff,
-          saturdayRule: wp.saturdayRule,
-          customSaturdays: wp.customSaturdays as any,
-          updatedAt: wp.updatedAt,
-          updatedBy: wp.updatedBy,
-        },
-      });
+      const existingPolicy = await targetPrisma.weekendPolicy.findFirst();
+      if (existingPolicy) {
+        await targetPrisma.weekendPolicy.update({
+          where: { id: existingPolicy.id },
+          data: {
+            sundayOff: wp.sundayOff,
+            saturdayRule: wp.saturdayRule,
+            customSaturdays: wp.customSaturdays as Prisma.InputJsonValue,
+            updatedAt: wp.updatedAt,
+            updatedBy: wp.updatedBy,
+          },
+        });
+      } else {
+        await targetPrisma.weekendPolicy.create({
+          data: {
+            ...wp,
+            customSaturdays: wp.customSaturdays as Prisma.InputJsonValue,
+          },
+        });
+      }
     }
 
     for (const uwp of userWeekendPolicies) {
       await targetPrisma.userWeekendPolicy.upsert({
-        where: { id: uwp.id },
-        create: uwp as any,
-        update: {
+        where: { userId: uwp.userId },
+        create: {
+          id: uwp.id,
           userId: uwp.userId,
           sundayOff: uwp.sundayOff,
           saturdayRule: uwp.saturdayRule,
-          customSaturdays: uwp.customSaturdays as any,
+          customSaturdays: uwp.customSaturdays as Prisma.InputJsonValue,
+          updatedAt: uwp.updatedAt,
+        },
+        update: {
+          sundayOff: uwp.sundayOff,
+          saturdayRule: uwp.saturdayRule,
+          customSaturdays: uwp.customSaturdays as Prisma.InputJsonValue,
           updatedAt: uwp.updatedAt,
         },
       });
@@ -362,9 +410,9 @@ export async function POST(req: Request) {
 
     for (const ts of timerStates) {
       await targetPrisma.timerState.upsert({
-        where: { id: ts.id },
-        create: ts as any,
-        update: {
+        where: { userId: ts.userId },
+        create: {
+          id: ts.id,
           userId: ts.userId,
           isActive: ts.isActive,
           startTime: ts.startTime,
@@ -374,12 +422,28 @@ export async function POST(req: Request) {
           accumulatedBreakMs: ts.accumulatedBreakMs,
           lastStatusChange: ts.lastStatusChange,
           status: ts.status,
-          logs: ts.logs as any,
+          logs: ts.logs as Prisma.InputJsonValue,
           updatedAt: ts.updatedAt,
           hasFiredOtNotification: ts.hasFiredOtNotification,
           lastNotifiedInterval: ts.lastNotifiedInterval,
           lastUpdated: ts.lastUpdated,
-          customNotifications: ts.customNotifications as any,
+          customNotifications: ts.customNotifications as Prisma.InputJsonValue,
+        },
+        update: {
+          isActive: ts.isActive,
+          startTime: ts.startTime,
+          targetWorkMs: ts.targetWorkMs,
+          targetBreakMs: ts.targetBreakMs,
+          accumulatedWorkMs: ts.accumulatedWorkMs,
+          accumulatedBreakMs: ts.accumulatedBreakMs,
+          lastStatusChange: ts.lastStatusChange,
+          status: ts.status,
+          logs: ts.logs as Prisma.InputJsonValue,
+          updatedAt: ts.updatedAt,
+          hasFiredOtNotification: ts.hasFiredOtNotification,
+          lastNotifiedInterval: ts.lastNotifiedInterval,
+          lastUpdated: ts.lastUpdated,
+          customNotifications: ts.customNotifications as Prisma.InputJsonValue,
         },
       });
     }
@@ -400,11 +464,21 @@ export async function POST(req: Request) {
 
     for (const dn of dayNotes) {
       await targetPrisma.dayNote.upsert({
-        where: { id: dn.id },
-        create: dn,
-        update: {
+        where: {
+          userId_date: {
+            userId: dn.userId,
+            date: dn.date,
+          },
+        },
+        create: {
+          id: dn.id,
           userId: dn.userId,
           date: dn.date,
+          note: dn.note,
+          createdAt: dn.createdAt,
+          updatedAt: dn.updatedAt,
+        },
+        update: {
           note: dn.note,
           createdAt: dn.createdAt,
           updatedAt: dn.updatedAt,
@@ -435,7 +509,7 @@ export async function POST(req: Request) {
         dayNotes: dayNotes.length,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[cron/sync-db] Database sync failed:", error);
     return NextResponse.json(
       {
