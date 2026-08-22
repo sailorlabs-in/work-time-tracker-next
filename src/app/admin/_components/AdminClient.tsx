@@ -676,7 +676,7 @@ function ManageHolidaysTab() {
               const res = await fetch("/api/admin/weekend-policy", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ sundayOff: true, saturdayRule, customSaturdays }),
+                body: JSON.stringify({ sundayOff, saturdayRule, customSaturdays }),
               });
               if (res.ok) {
                 setPolicyMsg("Weekend policy saved successfully!");
@@ -919,9 +919,35 @@ function ManageHolidaysTab() {
   );
 }
 
+type SyncMode = "24h" | "range" | "full";
+
+interface SyncResponseData {
+  success?: boolean;
+  message?: string;
+  error?: string;
+  details?: string;
+  direction?: string;
+  syncType?: string;
+  timeRange?: {
+    startDate: string;
+    endDate: string;
+  };
+  syncedCounts?: {
+    users: number;
+    holidays: number;
+    weekendPolicies: number;
+    userWeekendPolicies: number;
+    userHolidays: number;
+    workLogs: number;
+    timerStates: number;
+    notifications: number;
+    dayNotes: number;
+  };
+}
+
 function DatabaseSyncTab() {
   const [direction, setDirection] = useState<"prod-to-dev" | "dev-to-prod">("prod-to-dev");
-  const [syncMode, setSyncMode] = useState<"24h" | "range" | "full">("24h");
+  const [syncMode, setSyncMode] = useState<SyncMode>("24h");
 
   const todayStr = new Date().toISOString().split("T")[0];
   const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split("T")[0];
@@ -933,10 +959,15 @@ function DatabaseSyncTab() {
   const [status, setStatus] = useState<{
     type: "success" | "error" | "";
     text: string;
-    details?: any;
+    details?: SyncResponseData;
   }>({ type: "", text: "" });
 
   const handleSyncTrigger = async () => {
+    if (syncMode === "range" && startDate && endDate && startDate > endDate) {
+      alert("Start date cannot be after end date.");
+      return;
+    }
+
     const dirLabel =
       direction === "prod-to-dev"
         ? "Production → Development"
@@ -965,7 +996,12 @@ function DatabaseSyncTab() {
     setStatus({ type: "", text: "" });
 
     try {
-      const payload: any = {
+      const payload: {
+        direction: "prod-to-dev" | "dev-to-prod";
+        fullSync: boolean;
+        startDate?: string;
+        endDate?: string;
+      } = {
         direction,
         fullSync: syncMode === "full",
       };
@@ -981,7 +1017,7 @@ function DatabaseSyncTab() {
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const data: SyncResponseData = await res.json();
 
       if (!res.ok || data.error) {
         setStatus({
@@ -996,11 +1032,11 @@ function DatabaseSyncTab() {
           details: data,
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setStatus({
         type: "error",
         text: "Failed to communicate with sync endpoint",
-        details: { details: err?.message || String(err) },
+        details: { details: err instanceof Error ? err.message : String(err) },
       });
     } finally {
       setLoading(false);
@@ -1056,12 +1092,15 @@ function DatabaseSyncTab() {
               }}
             >
               <div style={{ fontWeight: 600, marginBottom: "6px" }}>Synced Records Summary:</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "8px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "8px" }}>
                 <div>👥 Users: {status.details.syncedCounts.users}</div>
                 <div>⏱️ Work Logs: {status.details.syncedCounts.workLogs}</div>
                 <div>⌛ Timer States: {status.details.syncedCounts.timerStates}</div>
                 <div>📝 Day Notes: {status.details.syncedCounts.dayNotes}</div>
                 <div>🎉 Holidays: {status.details.syncedCounts.holidays}</div>
+                <div>🏖️ User Holidays: {status.details.syncedCounts.userHolidays}</div>
+                <div>📅 Weekend Policies: {status.details.syncedCounts.weekendPolicies}</div>
+                <div>👤 User Weekend: {status.details.syncedCounts.userWeekendPolicies}</div>
                 <div>🔔 Notifications: {status.details.syncedCounts.notifications}</div>
               </div>
             </div>
@@ -1124,14 +1163,14 @@ function DatabaseSyncTab() {
         </label>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "16px" }}>
           {[
-            { id: "24h", label: "Last 24 Hours (Default)" },
-            { id: "range", label: "Custom Date Range" },
-            { id: "full", label: "Full Database Sync" },
+            { id: "24h" as const, label: "Last 24 Hours (Default)" },
+            { id: "range" as const, label: "Custom Date Range" },
+            { id: "full" as const, label: "Full Database Sync" },
           ].map((mode) => (
             <button
               key={mode.id}
               type="button"
-              onClick={() => setSyncMode(mode.id as any)}
+              onClick={() => setSyncMode(mode.id)}
               className={syncMode === mode.id ? "btn-primary" : "btn-secondary"}
               style={{ padding: "10px 18px", fontSize: "0.9rem" }}
             >
