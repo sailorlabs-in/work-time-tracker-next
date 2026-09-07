@@ -382,9 +382,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(10, 12, 20, 0.42);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: var(--modal-overlay);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
   border-radius: inherit;
   pointer-events: none;
   animation: fadeIn 0.2s ease-out;
@@ -394,24 +394,36 @@
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 22px;
-  background: rgba(26, 29, 41, 0.94);
-  border: 1px solid rgba(232, 133, 74, 0.35);
+  padding: 10px 24px;
   border-radius: var(--radius-full);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.55), 0 0 16px rgba(232, 133, 74, 0.22);
-  color: var(--text-main);
   font-size: 0.88rem;
   font-weight: 600;
   font-family: var(--font-heading);
   letter-spacing: 0.01em;
   animation: fadeInUp 0.25s ease-out;
+  transition: all var(--transition);
+}
+
+[data-theme="light"] .calendar-loading-badge,
+:root:not([data-theme="dark"]) .calendar-loading-badge {
+  background: #ffffff;
+  border: 1px solid rgba(232, 133, 74, 0.35);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.09), 0 2px 10px rgba(232, 133, 74, 0.15);
+  color: var(--text-main);
+}
+
+[data-theme="dark"] .calendar-loading-badge {
+  background: rgba(26, 29, 41, 0.94);
+  border: 1px solid rgba(232, 133, 74, 0.35);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.55), 0 0 16px rgba(232, 133, 74, 0.22);
+  color: var(--text-main);
 }
 
 .calendar-loading-spinner {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 2.5px solid var(--accent-subtle);
+  border: 2.5px solid var(--accent-subtle-border);
   border-top-color: var(--accent-primary);
   animation: spin 0.75s linear infinite;
   flex-shrink: 0;
@@ -851,7 +863,7 @@
 
 .btn-edit-sessions {
   background: var(--accent-subtle);
-  border: 1px solid rgba(138, 43, 226, 0.25);
+  border: 1px solid var(--accent-subtle-border);
   color: var(--accent-primary);
   font-size: 0.78rem;
   font-weight: 600;
@@ -885,7 +897,7 @@
 
 .day-modal-active-notice {
   background: var(--accent-subtle);
-  border: 1px solid rgba(138, 43, 226, 0.3);
+  border: 1px solid var(--accent-subtle-border);
   border-radius: var(--radius-md);
   padding: 10px 14px;
   font-size: 0.8rem;

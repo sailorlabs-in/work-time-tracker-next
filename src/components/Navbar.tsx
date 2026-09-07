@@ -5,9 +5,31 @@ import { useSession, signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import ThemeToggle from "./ThemeToggle";
-import { RiCloseLine, RiMenuLine, RiShieldStarLine } from "@remixicon/react";
+import {
+  RiCloseLine,
+  RiMenuLine,
+  RiShieldStarLine,
+  RiDashboardLine,
+  RiCalendarLine,
+  RiSettings4Line,
+  RiLogoutBoxRLine,
+} from "@remixicon/react";
 import { vibeClient } from "@/lib/vibe-client";
 import { getAppName } from "@/lib/brand";
+
+function getUserInitials(name?: string | null, email?: string | null): string {
+  if (name && name.trim()) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  }
+  if (email && email.trim()) {
+    return email.slice(0, 2).toUpperCase();
+  }
+  return "ME";
+}
 
 export default function Navbar() {
   const { data: session } = useSession();
@@ -22,6 +44,9 @@ export default function Navbar() {
     closeMenu();
     setIsSignoutModalOpen(true);
   };
+
+  const initials = getUserInitials(session.user?.name, session.user?.email);
+  const displayName = session.user?.name || session.user?.email?.split("@")[0] || "My Account";
 
   return (
     <nav className={`navbar ${isMenuOpen ? "navbar-menu-open" : ""}`}>
@@ -48,40 +73,16 @@ export default function Navbar() {
               className={`nav-link ${pathname === "/dashboard" ? "active" : ""}`}
               onClick={closeMenu}
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <rect x="3" y="3" width="7" height="7" rx="1" />
-                <rect x="14" y="3" width="7" height="7" rx="1" />
-                <rect x="3" y="14" width="7" height="7" rx="1" />
-                <rect x="14" y="14" width="7" height="7" rx="1" />
-              </svg>
-              Dashboard
+              <RiDashboardLine size={18} />
+              <span>Dashboard</span>
             </Link>
             <Link
               href="/calendar"
               className={`nav-link ${pathname === "/calendar" ? "active" : ""}`}
               onClick={closeMenu}
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <rect x="3" y="4" width="18" height="18" rx="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
-              Calendar
+              <RiCalendarLine size={18} />
+              <span>Calendar</span>
             </Link>
             {session.user?.isAdmin && (
               <Link
@@ -90,7 +91,7 @@ export default function Navbar() {
                 onClick={closeMenu}
               >
                 <RiShieldStarLine size={18} />
-                Admin
+                <span>Admin</span>
               </Link>
             )}
           </div>
@@ -100,16 +101,23 @@ export default function Navbar() {
             <div className="navbar-user">
               <Link
                 href="/settings"
-                className={`nav-link ${pathname === "/settings" ? "active" : ""}`}
-                style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                className={`nav-user-chip ${pathname === "/settings" ? "active" : ""}`}
                 onClick={closeMenu}
+                title="Account Settings"
               >
-                <span className="user-name">
-                  {session.user?.name || session.user?.email}
-                </span>
+                <div className="user-avatar">
+                  <span>{initials}</span>
+                </div>
+                <span className="user-name">{displayName}</span>
+                <RiSettings4Line size={16} className="user-settings-icon" />
               </Link>
-              <button onClick={openSignoutModal} className="btn-logout">
-                Sign out
+              <button
+                onClick={openSignoutModal}
+                className="btn-logout"
+                title="Sign out of account"
+              >
+                <RiLogoutBoxRLine size={15} />
+                <span className="logout-text">Sign out</span>
               </button>
             </div>
           </div>
@@ -118,37 +126,30 @@ export default function Navbar() {
 
       {isSignoutModalOpen && (
         <div
-          className="modal-overlay"
+          className="modal-overlay confirmation-modal-overlay"
           onClick={() => setIsSignoutModalOpen(false)}
         >
           <div
-            className="modal-card animate-in"
+            className="modal-card confirmation-modal-card animate-in"
             onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: "400px" }}
           >
-            <div className="modal-header modal-header-centered">
+            <div className="modal-header modal-header-centered confirmation-modal-header">
               <h2>Sign Out</h2>
             </div>
-            <div
-              className="modal-body"
-              style={{ textAlign: "center", padding: "20px 0" }}
-            >
+            <div className="modal-body confirmation-modal-body">
               <p>Are you sure you want to sign out from your session?</p>
             </div>
-            <div
-              className="modal-footer"
-              style={{ display: "flex", gap: "12px", marginTop: "24px" }}
-            >
+            <div className="modal-footer confirmation-modal-footer">
               <button
+                type="button"
                 className="btn-secondary"
-                style={{ flex: 1 }}
                 onClick={() => setIsSignoutModalOpen(false)}
               >
                 Cancel
               </button>
               <button
-                className="btn-danger"
-                style={{ flex: 1 }}
+                type="button"
+                className="btn-modal-danger"
                 onClick={async () => {
                   try {
                     const email = session?.user?.email;

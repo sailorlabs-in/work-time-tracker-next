@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import Link from "next/link";
 import {
   useWorkTimer,
   formatShortTime,
@@ -27,7 +28,7 @@ import {
   RiEdit2Line,
   RiFlagLine,
   RiTimerLine,
-  RiCloseLine,
+  RiSettings4Line,
 } from "@remixicon/react";
 import OfflineBanner from "@/components/OfflineBanner";
 import { ConfirmationModal } from "@/app/calendar/_components/DayDetailModal";
@@ -673,11 +674,9 @@ export default function DashboardClient({
     formatTime: ft,
   } = useWorkTimer(initialTimerState, userProfile, getServerNow);
 
-  const [workHours, setWorkHours] = useState(userProfile?.workHours ?? 8);
-  const [workMinutes, setWorkMinutes] = useState(userProfile?.workMinutes ?? 0);
-  const [breakMinutes, setBreakMinutes] = useState(
-    userProfile?.breakMinutes ?? 60,
-  );
+  const workHours = userProfile?.workHours ?? 8;
+  const workMinutes = userProfile?.workMinutes ?? 0;
+  const breakMinutes = userProfile?.breakMinutes ?? 60;
   const timeFormat = userProfile?.timeFormat === "24h" ? "24h" : "12h";
   const [entryTime, setEntryTime] = useState(() => {
     const now = new Date();
@@ -945,70 +944,57 @@ export default function DashboardClient({
 
       <div className={`main-content${state.isActive ? " dashboard-page" : ""}`}>
         {!state.isActive ? (
-          /* ─── Setup Form ─── */
           <div className="glass-card setup-card animate-in">
+            <div className="setup-hero-badge">
+              <RiRocketLine size={26} />
+            </div>
             <div className="card-header">
-              <h1 className="gradient-text">Work Time Tracker</h1>
-              <p className="subtitle">Plan your day efficiently.</p>
+              <h1 className="gradient-text">Ready to Begin?</h1>
+              <p className="subtitle">Start your work session and track your progress in real-time.</p>
             </div>
 
-            <div className="form-group">
-              <label>Work Duration</label>
-              <div className="dual-input">
-                <div className="input-half">
-                  <span className="input-label-small">Hours</span>
-                  <input
-                    className="input-disabled"
-                    type="number"
-                    id="workHours"
-                    disabled
-                    value={workHours}
-                    onChange={(e) => setWorkHours(Number(e.target.value))}
-                    min="0"
-                    max="24"
-                  />
-                </div>
-                <div className="input-half">
-                  <span className="input-label-small">Minutes</span>
-                  <input
-                    className="input-disabled"
-                    type="number"
-                    id="workMinutes"
-                    disabled
-                    value={workMinutes}
-                    onChange={(e) => setWorkMinutes(Number(e.target.value))}
-                    min="0"
-                    max="59"
-                  />
-                </div>
+            <div className="setup-targets-card">
+              <div className="setup-target-item">
+                <span className="setup-target-label">Target Work</span>
+                <span className="setup-target-val mono">
+                  {workHours}h {workMinutes > 0 ? `${workMinutes}m` : ""}
+                </span>
+              </div>
+              <div className="setup-target-divider" />
+              <div className="setup-target-item">
+                <span className="setup-target-label">Allocated Break</span>
+                <span className="setup-target-val mono">{breakMinutes}m</span>
               </div>
             </div>
 
-            <div className="form-group">
-              <label>Break Time (Minutes)</label>
-              <input
-                className="input-disabled"
-                type="number"
-                id="breakMinutes"
-                disabled
-                value={breakMinutes}
-                onChange={(e) => setBreakMinutes(Number(e.target.value))}
-                min="0"
-              />
-            </div>
+            <Link href="/settings" className="setup-settings-link">
+              <RiSettings4Line size={15} />
+              <span>Change daily targets in Settings</span>
+            </Link>
 
-            <div className="form-group">
-              <label>Entry Time(starting time of work)</label>
+            <div className="form-group entry-time-group">
+              <div className="entry-time-header">
+                <label htmlFor="entryTime">Starting Time (Punch-In)</label>
+                <button
+                  type="button"
+                  className="btn-now-pill"
+                  onClick={() => setEntryTime(nowTimeStr())}
+                  title="Set to current local time"
+                >
+                  Set to Now
+                </button>
+              </div>
               <input
                 type="time"
                 id="entryTime"
                 value={entryTime}
                 onChange={(e) => setEntryTime(e.target.value)}
+                className="entry-time-input"
               />
             </div>
 
-            <button onClick={handleStartDay} className="btn-primary btn-full">
-              <RiRocketLine size={18} /> Start Day
+            <button onClick={handleStartDay} className="btn-primary btn-full btn-start-day">
+              <RiPlayFill size={20} /> Start Day
             </button>
           </div>
         ) : (
@@ -1089,27 +1075,39 @@ export default function DashboardClient({
 
               <div className="stats-grid">
                 <div className="stat-card mb-center">
-                  <span className="stat-label">Worked</span>
+                  <div className="stat-header">
+                    <span className="stat-label">Worked</span>
+                    <RiTimerLine size={16} className="stat-icon" />
+                  </div>
                   <span className="stat-value mono">
                     {formatShortTime(totalWork)}
                   </span>
                 </div>
                 <div className="stat-card mb-center">
-                  <span className="stat-label">Break Used</span>
-                  <span className="stat-value mono ">
+                  <div className="stat-header">
+                    <span className="stat-label">Break Used</span>
+                    <RiCupLine size={16} className="stat-icon" />
+                  </div>
+                  <span className="stat-value mono">
                     {formatShortTime(totalBreak)}
                   </span>
                 </div>
                 <div className="stat-card mb-center">
-                  <span className="stat-label">Break Left</span>
+                  <div className="stat-header">
+                    <span className="stat-label">Break Left</span>
+                    <RiTimeLine size={16} className="stat-icon" />
+                  </div>
                   <span
-                    className={`stat-value mono mb-center ${remainingBreak <= 0 ? "danger" : ""}`}
+                    className={`stat-value mono ${remainingBreak <= 0 ? "danger" : ""}`}
                   >
                     {formatShortTime(Math.max(0, remainingBreak))}
                   </span>
                 </div>
                 <div className="stat-card mb-center">
-                  <span className="stat-label">Entry Time</span>
+                  <div className="stat-header">
+                    <span className="stat-label">Entry Time</span>
+                    <RiCalendarLine size={16} className="stat-icon" />
+                  </div>
                   <span className="stat-value mono">{startTimeStr}</span>
                 </div>
               </div>
@@ -1156,62 +1154,23 @@ export default function DashboardClient({
               </div>
 
               <div className="danger-zone">
-                <div
-                  className="danger-zone-header"
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    width: "100%",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <RiErrorWarningLine size={20} />
+                <div className="danger-zone-header">
+                  <div className="danger-zone-title-wrap">
+                    <RiErrorWarningLine size={18} />
                     <span className="danger-zone-title">Danger Zone</span>
                   </div>
                   <button
                     onClick={() => setIsConfirmingClearToday(true)}
-                    className="btn-danger-outline"
-                    style={{
-                      padding: "6px",
-                      borderRadius: "6px",
-                      background: "none",
-                      border: "1px solid transparent",
-                      color: "var(--text-muted)",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "var(--danger-color)";
-                      e.currentTarget.style.borderColor =
-                        "rgba(239, 83, 80, 0.2)";
-                      e.currentTarget.style.background =
-                        "rgba(239, 83, 80, 0.08)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "var(--text-muted)";
-                      e.currentTarget.style.borderColor = "transparent";
-                      e.currentTarget.style.background = "none";
-                    }}
+                    className="btn-danger-icon"
                     title="Clear Today's Logs"
                   >
                     <RiDeleteBinLine size={16} />
                   </button>
                 </div>
-                <div className="danger-actions" style={{ marginTop: "12px" }}>
+                <div className="danger-actions">
                   <button
                     onClick={resetDay}
                     className="btn-danger"
-                    style={{ width: "100%" }}
                   >
                     <RiFlagLine size={18} /> End Day
                   </button>
@@ -1220,9 +1179,7 @@ export default function DashboardClient({
             </div>
 
             {/* RIGHT: Session panel and Daily Note */}
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "24px" }}
-            >
+            <div className="dashboard-sidebar">
               <SessionPanel
                 logs={state.logs}
                 status={state.status}

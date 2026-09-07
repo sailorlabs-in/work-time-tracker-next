@@ -16,7 +16,6 @@ import {
   RiDeleteBinLine,
   RiEdit2Line,
 } from "@remixicon/react";
-import { getSaturdayRuleLabel } from "@/lib/weekendPolicy";
 
 export default function SettingsClient() {
   const { data: session } = useSession();
@@ -342,8 +341,7 @@ export default function SettingsClient() {
                   type="text"
                   value={timezone}
                   disabled
-                  className="input-disabled"
-                  style={{ maxWidth: "320px" }}
+                  className="input-disabled settings-input-md"
                 />
               </div>
             </div>
@@ -368,8 +366,8 @@ export default function SettingsClient() {
                   <label>Desktop Notifications</label>
                   <p>Enable push alerts and desktop popup notifications for work tracker activities.</p>
                 </div>
-                <div className="settings-row-control" style={{ justifyContent: "flex-end" }}>
-                  <label className="toggle-wrapper" style={{ margin: 0 }}>
+                <div className="settings-row-control settings-control-end">
+                  <label className="toggle-wrapper">
                     <input
                       type="checkbox"
                       className="toggle-checkbox"
@@ -382,13 +380,13 @@ export default function SettingsClient() {
               </div>
 
               {/* Toggle 1: Notify on completion */}
-              <div className="settings-row" style={!notificationsEnabled ? { opacity: 0.5, transition: "all 0.2s" } : { transition: "all 0.2s" }}>
+              <div className={`settings-row ${!notificationsEnabled ? "disabled-row" : ""}`}>
                 <div className="settings-row-info">
                   <label>Notify on Completion</label>
                   <p>Send a desktop alert as soon as you complete your target work hours.</p>
                 </div>
-                <div className="settings-row-control" style={{ justifyContent: "flex-end" }}>
-                  <label className="toggle-wrapper" style={{ margin: 0 }}>
+                <div className="settings-row-control settings-control-end">
+                  <label className="toggle-wrapper">
                     <input
                       type="checkbox"
                       className="toggle-checkbox"
@@ -396,19 +394,19 @@ export default function SettingsClient() {
                       onChange={(e) => setNotifyOnCompletion(e.target.checked)}
                       disabled={!notificationsEnabled}
                     />
-                    <div className="toggle-slider" style={!notificationsEnabled ? { opacity: 0.5, cursor: "not-allowed" } : {}}></div>
+                    <div className="toggle-slider"></div>
                   </label>
                 </div>
               </div>
 
               {/* Toggle 2: Constant notifications */}
-              <div className="settings-row" style={!notificationsEnabled ? { opacity: 0.5, transition: "all 0.2s" } : { transition: "all 0.2s" }}>
+              <div className={`settings-row ${!notificationsEnabled ? "disabled-row" : ""}`}>
                 <div className="settings-row-info">
                   <label>Periodic Progress Alerts</label>
                   <p>Receive constant updates of completed work time and remaining hours until complete.</p>
                 </div>
-                <div className="settings-row-control" style={{ justifyContent: "flex-end" }}>
-                  <label className="toggle-wrapper" style={{ margin: 0 }}>
+                <div className="settings-row-control settings-control-end">
+                  <label className="toggle-wrapper">
                     <input
                       type="checkbox"
                       className="toggle-checkbox"
@@ -416,14 +414,14 @@ export default function SettingsClient() {
                       onChange={(e) => setNotifyConstant(e.target.checked)}
                       disabled={!notificationsEnabled}
                     />
-                    <div className="toggle-slider" style={!notificationsEnabled ? { opacity: 0.5, cursor: "not-allowed" } : {}}></div>
+                    <div className="toggle-slider"></div>
                   </label>
                 </div>
               </div>
 
               {/* Select Option: Interval (Visible if Constant Notifications is checked) */}
               {notifyConstant && (
-                <div className="settings-row animate-in" style={!notificationsEnabled ? { opacity: 0.5, transition: "all 0.2s" } : { transition: "all 0.2s" }}>
+                <div className={`settings-row animate-in ${!notificationsEnabled ? "disabled-row" : ""}`}>
                   <div className="settings-row-info">
                     <label>Alert Interval</label>
                     <p>Choose how frequently you receive progress updates.</p>
@@ -433,19 +431,7 @@ export default function SettingsClient() {
                       value={notifyInterval}
                       onChange={(e) => setNotifyInterval(Number(e.target.value))}
                       disabled={!notificationsEnabled}
-                      style={{
-                        padding: "10px 14px",
-                        borderRadius: "10px",
-                        border: "1px solid var(--card-border)",
-                        background: "var(--card-bg)",
-                        color: "var(--text-main)",
-                        fontSize: "0.95rem",
-                        width: "100%",
-                        maxWidth: "320px",
-                        cursor: notificationsEnabled ? "pointer" : "not-allowed",
-                        outline: "none",
-                        transition: "all 0.2s",
-                      }}
+                      className="settings-select"
                     >
                       <option value={30}>30 minutes</option>
                       <option value={60}>1 hour</option>
@@ -554,7 +540,7 @@ export default function SettingsClient() {
                     value={breakMinutes}
                     onChange={(e) => setBreakMinutes(Number(e.target.value))}
                     min="0"
-                    style={{ maxWidth: "120px" }}
+                    className="settings-input-sm"
                   />
                 </div>
               </div>
@@ -707,8 +693,8 @@ export default function SettingsClient() {
                 <label>Use Events &amp; Holidays from Server</label>
                 <p>When enabled, holidays and weekend-off schedule managed by admin will apply. When disabled, you can define your own.</p>
               </div>
-              <div className="settings-row-control" style={{ justifyContent: "flex-end" }}>
-                <label className="toggle-wrapper" style={{ margin: 0 }}>
+              <div className="settings-row-control settings-control-end">
+                <label className="toggle-wrapper">
                   <input
                     type="checkbox"
                     className="toggle-checkbox"
@@ -735,7 +721,7 @@ export default function SettingsClient() {
             </div>
 
             {useServerPolicy && (
-              <div className="settings-row" style={{ opacity: 0.7 }}>
+              <div className="settings-row disabled-row">
                 <div className="settings-row-info">
                   <label style={{ fontStyle: "italic" }}>Admin-managed</label>
                   <p>Your calendar uses holidays and weekend schedule set by your admin. No action needed.</p>
@@ -746,7 +732,6 @@ export default function SettingsClient() {
             {/* Custom Weekend Policy - shown when useServerPolicy is OFF */}
             {!useServerPolicy && (
               <>
-
                 <div className="settings-row">
                   <div className="settings-row-info">
                     <label>Saturday Off Rule</label>
@@ -759,18 +744,7 @@ export default function SettingsClient() {
                         setCustomSaturdayRule(e.target.value);
                         if (e.target.value !== "custom") setCustomSaturdays([]);
                       }}
-                      style={{
-                        padding: "10px 14px",
-                        borderRadius: "10px",
-                        border: "1px solid var(--card-border)",
-                        background: "var(--card-bg)",
-                        color: "var(--text-main)",
-                        fontSize: "0.95rem",
-                        width: "100%",
-                        maxWidth: "320px",
-                        cursor: "pointer",
-                        outline: "none",
-                      }}
+                      className="settings-select"
                     >
                       <option value="all">Every Saturday Off</option>
                       <option value="none">No Saturdays Off</option>
@@ -788,9 +762,9 @@ export default function SettingsClient() {
                       <p>Select which week numbers have Saturday off.</p>
                     </div>
                     <div className="settings-row-control">
-                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      <div className="week-checkbox-group">
                         {[1, 2, 3, 4, 5].map((w) => (
-                          <label key={w} style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
+                          <label key={w} className="week-checkbox-item">
                             <input
                               type="checkbox"
                               checked={customSaturdays.includes(w)}
@@ -826,7 +800,7 @@ export default function SettingsClient() {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
-                        sundayOff: true,
+                        sundayOff: customSundayOff,
                         saturdayRule: customSaturdayRule,
                         customSaturdays,
                       }),
@@ -904,10 +878,10 @@ export default function SettingsClient() {
                     alert("Failed to save holiday");
                   }
                 }}
-                style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "16px" }}
+                className="holiday-form"
               >
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
+                <div className="settings-grid-2">
+                  <div className="form-group">
                     <label>Holiday Name</label>
                     <input
                       type="text"
@@ -917,7 +891,7 @@ export default function SettingsClient() {
                       placeholder="e.g. Personal Day"
                     />
                   </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
+                  <div className="form-group">
                     <label>Date</label>
                     <input
                       type="date"
@@ -927,29 +901,20 @@ export default function SettingsClient() {
                     />
                   </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
+                <div className="settings-grid-2">
+                  <div className="form-group">
                     <label>Type</label>
                     <select
                       value={newHolType}
                       onChange={(e) => setNewHolType(e.target.value as "full" | "partial")}
-                      style={{
-                        padding: "10px 14px",
-                        borderRadius: "10px",
-                        border: "1px solid var(--card-border)",
-                        background: "var(--card-bg)",
-                        color: "var(--text-main)",
-                        fontSize: "0.95rem",
-                        width: "100%",
-                        cursor: "pointer",
-                      }}
+                      className="settings-select"
                     >
                       <option value="full">Full Day Off</option>
                       <option value="partial">Partial Day (Custom Hours)</option>
                     </select>
                   </div>
                   {newHolType === "partial" && (
-                    <div className="form-group" style={{ marginBottom: 0 }}>
+                    <div className="form-group">
                       <label>Duration</label>
                       <div className="duration-inputs">
                         <input
@@ -972,7 +937,7 @@ export default function SettingsClient() {
                     </div>
                   )}
                 </div>
-                <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                <div className="holiday-form-actions">
                   {editingHolId && (
                     <button
                       type="button"
@@ -985,12 +950,11 @@ export default function SettingsClient() {
                         setNewHolDurationH(0);
                         setNewHolDurationM(0);
                       }}
-                      style={{ padding: "8px 16px" }}
                     >
                       Cancel
                     </button>
                   )}
-                  <button type="submit" className="btn-primary" style={{ padding: "8px 16px" }}>
+                  <button type="submit" className="btn-primary">
                     {editingHolId ? "Update Holiday" : "Add Holiday"}
                   </button>
                 </div>
@@ -1030,10 +994,9 @@ export default function SettingsClient() {
                           )}
                         </td>
                         <td>
-                          <div style={{ display: "flex", gap: "8px" }}>
+                          <div className="holiday-table-actions">
                             <button
                               className="btn-secondary"
-                              style={{ padding: "4px 10px", fontSize: "0.8rem" }}
                               onClick={() => {
                                 setEditingHolId(h.id);
                                 setNewHolName(h.name);
@@ -1048,17 +1011,18 @@ export default function SettingsClient() {
                                   setNewHolDurationM(h.durationMinutes % 60);
                                 }
                               }}
+                              title="Edit Holiday"
                             >
                               <RiEdit2Line size={14} />
                             </button>
                             <button
                               className="btn-secondary btn-delete-sm"
-                              style={{ padding: "4px 10px", fontSize: "0.8rem" }}
                               onClick={async () => {
                                 if (!confirm(`Delete holiday: ${h.name}?`)) return;
                                 await fetch(`/api/user/holidays/${h.id}`, { method: "DELETE" });
                                 setUserHolidays((prev) => prev.filter((x) => x.id !== h.id));
                               }}
+                              title="Delete Holiday"
                             >
                               <RiDeleteBinLine size={14} />
                             </button>

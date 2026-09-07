@@ -18,17 +18,29 @@ input[type="email"],
 input[type="password"],
 input[type="number"],
 input[type="time"],
-input[type="date"] {
+input[type="date"],
+select {
   background: var(--input-bg);
   border: 1px solid var(--input-border);
   color: var(--text-main);
   padding: 12px 16px;
   border-radius: var(--radius-md);
   font-size: 1rem;
-  font-family: var(--font-mono);
+  font-family: inherit;
   outline: none;
   transition: all var(--transition);
   width: 100%;
+}
+
+select {
+  cursor: pointer;
+  background-color: var(--select-bg);
+  color: var(--text-main);
+
+  option {
+    background-color: var(--select-bg);
+    color: var(--text-main);
+  }
 }
 
 textarea {
@@ -45,7 +57,8 @@ textarea {
 }
 
 input:focus,
-textarea:focus {
+textarea:focus,
+select:focus {
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
