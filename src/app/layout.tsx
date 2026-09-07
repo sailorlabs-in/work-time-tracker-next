@@ -7,6 +7,7 @@ import "./globals.scss";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import NotificationBanner from "@/components/NotificationBanner";
+import NavigationProgressBar from "@/components/NavigationProgressBar";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import { getAppName } from "@/lib/brand";
 
@@ -69,6 +70,7 @@ export default async function RootLayout({
       <body>
         <SessionProvider session={session}>
           <ThemeProvider>
+            <NavigationProgressBar />
             <div className="app-shell">
               <ServiceWorkerRegistrar />
               <Navbar />

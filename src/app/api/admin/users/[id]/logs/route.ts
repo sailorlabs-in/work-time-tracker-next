@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import { getWorkLogs } from "@/lib/api-services";
 
 export async function GET(
@@ -19,9 +20,28 @@ export async function GET(
     const startDate = searchParams.get("startDate") || undefined;
     const endDate = searchParams.get("endDate") || undefined;
 
-    const events = await getWorkLogs(id, startDate, endDate);
+    const eventsPromise = getWorkLogs(id, startDate, endDate);
 
-    return NextResponse.json(events);
+    let notesPromise: Promise<unknown[]> = Promise.resolve([]);
+    if (startDate && endDate) {
+      const start = new Date(startDate.split("T")[0]);
+      const end = new Date(endDate.split("T")[0]);
+      notesPromise = prisma.dayNote.findMany({
+        where: {
+          userId: id,
+          date: { gte: start, lte: end },
+        },
+      });
+    } else {
+      notesPromise = prisma.dayNote.findMany({
+        where: { userId: id },
+        orderBy: { date: "desc" },
+      });
+    }
+
+    const [events, notes] = await Promise.all([eventsPromise, notesPromise]);
+
+    return NextResponse.json({ events, notes });
   } catch (error) {
     console.error("Failed to fetch user logs:", error);
     return NextResponse.json(
