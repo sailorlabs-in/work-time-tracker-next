@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   RiBriefcaseLine,
@@ -10,10 +10,29 @@ import {
   RiCheckboxCircleLine,
   RiDeleteBinLine,
   RiArrowRightLine,
+  RiEditLine,
+  RiAddLine,
+  RiTimeLine,
 } from "@remixicon/react";
 import { WeekendPolicyData, DEFAULT_WEEKEND_POLICY, isWeekendOffDay } from "@/lib/weekendPolicy";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
+
+interface WorkSession {
+  id: string;
+  punchIn: string; // "HH:mm"
+  punchOut: string; // "HH:mm"
+}
+
+function genId() {
+  return Math.random().toString(36).slice(2);
+}
+
+function timeToMinutes(t: string): number {
+  if (!t) return 0;
+  const [h, m] = t.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
 
 interface WorkLog {
   id: string;
@@ -51,10 +70,6 @@ interface TimelineItem {
   previousLogId?: string;
   nextLogId?: string;
   position: "first" | "middle" | "last" | "only";
-}
-
-interface PendingDelete {
-  item: TimelineItem;
 }
 
 interface Props {
@@ -103,10 +118,7 @@ export default function DayDetailModal({
   onClose,
   onRefresh,
 }: Props) {
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(
-    null,
-  );
+  const [isClearingDay, setIsClearingDay] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [isConfirmingClear, setIsConfirmingClear] = useState(false);
@@ -153,7 +165,7 @@ export default function DayDetailModal({
   const executeClearDay = useCallback(async () => {
     setErrorMsg("");
     setSuccessMsg("");
-    setDeletingId("clear-day-action");
+    setIsClearingDay(true);
 
     try {
       const todayDateStr = new Date().toLocaleDateString("en-CA");
@@ -187,7 +199,7 @@ export default function DayDetailModal({
       setErrorMsg("Network error. Please check your connection.");
       setIsConfirmingClear(false);
     } finally {
-      setDeletingId(null);
+      setIsClearingDay(false);
     }
   }, [date, onRefresh, onClose]);
 
@@ -286,111 +298,6 @@ export default function DayDetailModal({
     earlyMs = 0;
   }
 
-  // ── Delete handler ───────────────────────────────────────────
-
-  const executeDelete = useCallback(
-    async (item: TimelineItem) => {
-      setErrorMsg("");
-      setSuccessMsg("");
-      const deletingKey =
-        item.type === "break"
-          ? `break-${item.previousLogId}-${item.nextLogId}`
-          : item.logId!;
-      setDeletingId(deletingKey);
-
-      try {
-        const body =
-          item.type === "break"
-            ? {
-                action: "delete-break",
-                previousLogId: item.previousLogId,
-                nextLogId: item.nextLogId,
-              }
-            : { action: "delete-work", logId: item.logId };
-
-        const res = await fetch("/api/worklog/delete-session", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-
-        if (res.ok) {
-          setSuccessMsg(
-            item.type === "break"
-              ? "Break removed — sessions merged!"
-              : "Session deleted.",
-          );
-          setPendingDelete(null);
-          onRefresh();
-          setTimeout(onClose, 900);
-        } else {
-          const d = await res.json().catch(() => ({}));
-          setErrorMsg(d.error || "Something went wrong. Please try again.");
-          setPendingDelete(null);
-        }
-      } catch {
-        setErrorMsg("Network error. Please check your connection.");
-        setPendingDelete(null);
-      } finally {
-        setDeletingId(null);
-      }
-    },
-    [onRefresh, onClose],
-  );
-
-  const handleDeleteClick = (item: TimelineItem) => {
-    setErrorMsg("");
-    setSuccessMsg("");
-    setPendingDelete({ item });
-  };
-
-  const handleConfirm = () => {
-    if (pendingDelete) executeDelete(pendingDelete.item);
-  };
-
-  const handleCancel = () => {
-    setPendingDelete(null);
-    setErrorMsg("");
-  };
-
-  // ── Confirmation copy ────────────────────────────────────────
-
-  function getConfirmMessage(item: TimelineItem): string {
-    if (item.type === "break") {
-      const prevWork = timeline.find(
-        (t) => t.type === "work" && t.logId === item.previousLogId,
-      );
-      const nextWork = timeline.find(
-        (t) => t.type === "work" && t.logId === item.nextLogId,
-      );
-      const prevDur = prevWork ? fmtDur(prevWork.durationMs) : "?";
-      const nextDur = nextWork
-        ? nextWork.isActive
-          ? "ongoing"
-          : fmtDur(nextWork.durationMs)
-        : "?";
-      return `Remove this ${fmtDur(item.durationMs)} break and merge the surrounding sessions (${prevDur} + ${nextDur}) into one continuous work block?`;
-    }
-    if (item.position === "only")
-      return `Delete the only work session for this day? All data for ${date} will be removed.`;
-    if (item.position === "first")
-      return `Delete the first work session (${fmtDur(item.durationMs)})? The day will start from the next session.`;
-    if (item.position === "last")
-      return item.isActive
-        ? `End and delete the active session? This cannot be undone.`
-        : `Delete the last work session (${fmtDur(item.durationMs)})? The day's records will be trimmed.`;
-
-    const itemIdx = timeline.findIndex((t) => t.key === item.key);
-    const prevBreak = itemIdx > 0 ? timeline[itemIdx - 1] : null;
-    const nextBreak =
-      itemIdx < timeline.length - 1 ? timeline[itemIdx + 1] : null;
-    const newBreakMs =
-      (prevBreak?.type === "break" ? prevBreak.durationMs : 0) +
-      item.durationMs +
-      (nextBreak?.type === "break" ? nextBreak.durationMs : 0);
-    return `Delete this ${fmtDur(item.durationMs)} work session? The surrounding breaks will merge into a single ${fmtDur(newBreakMs)} break.`;
-  }
-
   const displayDate = new Date(date + "T00:00:00").toLocaleDateString("en-IN", {
     weekday: "long",
     year: "numeric",
@@ -398,86 +305,153 @@ export default function DayDetailModal({
     day: "numeric",
   });
 
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editPunchIn, setEditPunchIn] = useState("");
-  const [editPunchOut, setEditPunchOut] = useState("");
+  const [isEditingSessions, setIsEditingSessions] = useState(false);
+  const [sessions, setSessions] = useState<WorkSession[]>([]);
+  const [isSavingSessions, setIsSavingSessions] = useState(false);
 
-  const handleEditClick = (item: TimelineItem) => {
+  const handleStartEditSessions = () => {
     setErrorMsg("");
     setSuccessMsg("");
-    setPendingDelete(null);
-    setDeletingId(null);
-    
-    setEditingId(item.logId!);
-    setEditPunchIn(new Date(item.start).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }));
-    if (item.end) {
-      setEditPunchOut(new Date(item.end).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }));
+
+    const completedWork = workItems
+      .filter((w) => !w.isActive)
+      .map((w) => {
+        const inD = new Date(w.start);
+        const outD = w.end ? new Date(w.end) : inD;
+        const inH = String(inD.getHours()).padStart(2, "0");
+        const inM = String(inD.getMinutes()).padStart(2, "0");
+        const outH = String(outD.getHours()).padStart(2, "0");
+        const outM = String(outD.getMinutes()).padStart(2, "0");
+        return {
+          id: w.logId || genId(),
+          punchIn: `${inH}:${inM}`,
+          punchOut: `${outH}:${outM}`,
+        };
+      });
+
+    if (completedWork.length === 0) {
+      setSessions([
+        { id: genId(), punchIn: "09:00", punchOut: "18:00" },
+      ]);
     } else {
-      setEditPunchOut("");
+      setSessions(completedWork);
     }
+    setIsEditingSessions(true);
   };
 
-  const cancelEdit = () => {
-    setEditingId(null);
+  const addSession = () => {
+    const last = sessions[sessions.length - 1];
+    const lastOutMin = timeToMinutes(last?.punchOut || "18:00");
+    const newInMin = lastOutMin + 30;
+    const newInH = Math.floor(newInMin / 60);
+    const newInM = newInMin % 60;
+    const newInStr = `${String(Math.min(newInH, 23)).padStart(2, "0")}:${String(newInM).padStart(2, "0")}`;
+    const newOutMin = Math.min(newInMin + 60, 23 * 60 + 59);
+    const newOutH = Math.floor(newOutMin / 60);
+    const newOutM = newOutMin % 60;
+    const newOutStr = `${String(newOutH).padStart(2, "0")}:${String(newOutM).padStart(2, "0")}`;
+    setSessions([
+      ...sessions,
+      { id: genId(), punchIn: newInStr, punchOut: newOutStr },
+    ]);
+  };
+
+  const removeSession = (id: string) => {
+    if (sessions.length === 1) return;
+    setSessions(sessions.filter((s) => s.id !== id));
+  };
+
+  const updateSession = (
+    id: string,
+    field: "punchIn" | "punchOut",
+    value: string,
+  ) => {
+    setSessions(
+      sessions.map((s) => (s.id === id ? { ...s, [field]: value } : s)),
+    );
+  };
+
+  const editSummary = useMemo(() => {
+    let workMs = 0;
+    let breakMs = 0;
+    sessions.forEach((s, i) => {
+      const inMin = timeToMinutes(s.punchIn);
+      const outMin = timeToMinutes(s.punchOut);
+      if (outMin > inMin) workMs += (outMin - inMin) * 60000;
+      const next = sessions[i + 1];
+      if (next) {
+        const gap = timeToMinutes(next.punchIn) - outMin;
+        if (gap > 0) breakMs += gap * 60000;
+      }
+    });
+    return { workMs, breakMs };
+  }, [sessions]);
+
+  const handleCancelEdit = () => {
+    setIsEditingSessions(false);
     setErrorMsg("");
   };
 
-  const executeEdit = async (item: TimelineItem) => {
+  const handleSaveSessions = async () => {
     setErrorMsg("");
     setSuccessMsg("");
 
-    if (!editPunchIn) {
-      setErrorMsg("Punch in time cannot be empty.");
-      return;
-    }
-
-    try {
-      const originalStartDate = new Date(item.start);
-      const newInTokens = editPunchIn.split(":");
-      originalStartDate.setHours(Number(newInTokens[0]), Number(newInTokens[1]), 0, 0);
-
-      let newOutDate: Date | null = null;
-      let totalHoursInput: number | null = null;
-      
-      if (editPunchOut) {
-        newOutDate = new Date(item.end || item.start);
-        const newOutTokens = editPunchOut.split(":");
-        newOutDate.setHours(Number(newOutTokens[0]), Number(newOutTokens[1]), 0, 0);
-
-        if (newOutDate < originalStartDate) {
-          setErrorMsg("Punch out time cannot be before punch in.");
+    for (let i = 0; i < sessions.length; i++) {
+      const s = sessions[i];
+      if (!s.punchIn || !s.punchOut) {
+        setErrorMsg(`Session ${i + 1}: punch-in and punch-out are required.`);
+        return;
+      }
+      if (timeToMinutes(s.punchOut) <= timeToMinutes(s.punchIn)) {
+        setErrorMsg(`Session ${i + 1}: punch-out must be after punch-in.`);
+        return;
+      }
+      if (i > 0) {
+        const prev = sessions[i - 1];
+        if (timeToMinutes(s.punchIn) < timeToMinutes(prev.punchOut)) {
+          setErrorMsg(`Session ${i + 1} overlaps with session ${i}.`);
           return;
         }
-
-        const durationMs = newOutDate.getTime() - originalStartDate.getTime();
-        totalHoursInput = parseFloat((durationMs / (1000 * 60 * 60)).toFixed(2));
       }
+    }
 
-      setDeletingId(item.logId!); 
+    setIsSavingSessions(true);
+    try {
+      const sessionData = sessions.map((s) => {
+        const punchIn = new Date(`${date}T${s.punchIn}:00`);
+        const punchOut = new Date(`${date}T${s.punchOut}:00`);
+        const totalHours = (punchOut.getTime() - punchIn.getTime()) / 3600000;
+        return {
+          punchIn: punchIn.toISOString(),
+          punchOut: punchOut.toISOString(),
+          totalHours: parseFloat(totalHours.toFixed(4)),
+        };
+      });
 
-      const res = await fetch("/api/worklog/update-session", {
+      const res = await fetch("/api/worklog", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          logId: item.logId,
-          newPunchIn: originalStartDate.toISOString(),
-          newPunchOut: newOutDate ? newOutDate.toISOString() : null,
-          totalHours: totalHoursInput,
+          type: "bulk",
+          date,
+          sessions: sessionData,
+          replaceExisting: true,
         }),
       });
 
-      if (res.ok) {
-        setSuccessMsg("Session updated successfully.");
-        setEditingId(null);
-        onRefresh();
-      } else {
+      if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        setErrorMsg(d.error || "Failed to update session.");
+        setErrorMsg(d.error || "Failed to update sessions.");
+        return;
       }
+
+      setSuccessMsg("Day sessions updated successfully.");
+      setIsEditingSessions(false);
+      onRefresh();
     } catch {
-      setErrorMsg("Network error trying to update session.");
+      setErrorMsg("Something went wrong saving sessions. Please try again.");
     } finally {
-      setDeletingId(null);
+      setIsSavingSessions(false);
     }
   };
 
@@ -557,33 +531,16 @@ export default function DayDetailModal({
 
 
         {/* Day Notes Section */}
-        <div className="day-modal-notes-section" style={{
-          marginTop: "12px",
-          marginBottom: "12px",
-          padding: "16px",
-          borderRadius: "var(--radius-md)",
-          background: "var(--slate-bg)",
-          border: "1px solid var(--card-border)",
-          display: "flex",
-          flexDirection: "column",
-          gap: "10px"
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-main)", display: "flex", alignItems: "center", gap: "6px" }}>
+        <div className="day-modal-notes-section">
+          <div className="dm-notes-header">
+            <span className="dm-notes-title">
               📝 Day Note
             </span>
             {!isEditingNote && (
               <button
+                type="button"
+                className="dm-notes-action-btn"
                 onClick={() => setIsEditingNote(true)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "var(--accent-primary)",
-                  fontSize: "0.8rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  padding: 0
-                }}
               >
                 {localNote ? "Edit Note" : "Add Note"}
               </button>
@@ -591,28 +548,17 @@ export default function DayDetailModal({
           </div>
 
           {isEditingNote ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div className="dm-notes-edit-box">
               <textarea
                 value={localNote}
                 onChange={(e) => setLocalNote(e.target.value)}
                 placeholder="Add note for this day..."
-                style={{
-                  padding: "10px",
-                  fontSize: "0.85rem",
-                  minHeight: "70px",
-                  borderRadius: "6px",
-                  background: "var(--input-bg)",
-                  border: "1px solid var(--input-border)",
-                  color: "var(--text-main)",
-                  width: "100%",
-                  resize: "vertical",
-                  fontFamily: "inherit"
-                }}
+                className="dm-notes-textarea"
               />
-              <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+              <div className="dm-notes-actions">
                 <button
-                  className="btn-secondary"
-                  style={{ padding: "4px 10px", fontSize: "0.75rem" }}
+                  type="button"
+                  className="btn-secondary btn-small-action"
                   onClick={() => {
                     setLocalNote(note || "");
                     setIsEditingNote(false);
@@ -622,8 +568,8 @@ export default function DayDetailModal({
                   Cancel
                 </button>
                 <button
-                  className="btn-primary"
-                  style={{ padding: "4px 10px", fontSize: "0.75rem" }}
+                  type="button"
+                  className="btn-primary btn-small-action"
                   onClick={handleSaveNote}
                   disabled={isSavingNote}
                 >
@@ -632,251 +578,292 @@ export default function DayDetailModal({
               </div>
             </div>
           ) : (
-            <p style={{
-              margin: 0,
-              fontSize: "0.85rem",
-              color: localNote ? "var(--text-secondary)" : "var(--text-dim)",
-              fontStyle: localNote ? "normal" : "italic",
-              lineHeight: 1.5,
-              whiteSpace: "pre-wrap"
-            }}>
+            <p className={`dm-notes-content ${localNote ? "has-note" : "empty"}`}>
               {localNote || "No notes added for this day."}
             </p>
           )}
         </div>
 
-        {/* Timeline */}
-        {timeline.length === 0 ? (
-          <p className="day-modal-empty">No sessions recorded for this day.</p>
-        ) : (
-          <div className="day-timeline">
-            {timeline.map((item, idx) => {
-              const deleteKey =
-                item.type === "break"
-                  ? `break-${item.previousLogId}-${item.nextLogId}`
-                  : item.logId!;
-              const isThisDeleting = deletingId === deleteKey;
-              const isPendingThis =
-                pendingDelete?.item.key === item.key && !isThisDeleting;
-              const isEditingThis = editingId === item.logId;
-              const isLast = idx === timeline.length - 1;
+        {/* Sessions Content: Editing Mode or Timeline View */}
+        {isEditingSessions ? (
+          <div className="day-modal-edit-panel">
+            <div className="day-modal-section-header">
+              <span className="dm-section-title">
+                <RiEditLine size={16} /> Edit Day Sessions
+              </span>
+              <button
+                type="button"
+                className="btn-secondary btn-small-action"
+                onClick={handleCancelEdit}
+                disabled={isSavingSessions}
+              >
+                Cancel
+              </button>
+            </div>
 
-              return (
-                <div
-                  key={item.key}
-                  className={[
-                    "timeline-item",
-                    `timeline-item-${item.type}`,
-                    item.isActive ? "timeline-active" : "",
-                    isPendingThis ? "timeline-item-pending" : "",
-                    isThisDeleting ? "timeline-item-deleting" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
-                  <div className="timeline-dot-col">
-                    <div className="timeline-dot" />
-                    {!isLast && <div className="timeline-connector" />}
-                  </div>
+            {hasActiveWork && (
+              <div className="day-modal-active-notice">
+                <RiErrorWarningLine size={18} />
+                <span>
+                  An active timer is currently running for today. It will remain active while you edit the completed sessions below.
+                </span>
+              </div>
+            )}
 
-                  <div className="timeline-body" style={{ width: "100%" }}>
-                    
-                    {isEditingThis ? (
-                      <div className="modal-time-row" style={{ marginTop: "4px", marginBottom: "8px" }}>
-                        <div className="form-group" style={{ flex: 1 }}>
-                          <input
-                            type="time"
-                            value={editPunchIn}
-                            onChange={(e) => setEditPunchIn(e.target.value)}
-                            style={{ padding: "6px" }}
-                          />
-                        </div>
-                        <div className="modal-time-arrow" style={{ paddingBottom: "10px" }}>→</div>
-                        <div className="form-group" style={{ flex: 1 }}>
-                          <input
-                            type="time"
-                            value={editPunchOut}
-                            onChange={(e) => setEditPunchOut(e.target.value)}
-                            disabled={item.isActive}
-                            style={{ padding: "6px" }}
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="timeline-times mono">
-                        <span>{fmtT(item.start, timeFormat)}</span>
-                        <RiArrowRightLine className="timeline-arrow" size={14} />
-                        <span>
-                          {item.isActive ? (
-                            <span className="session-ongoing">now</span>
-                          ) : (
-                            fmtT(item.end, timeFormat)
-                          )}
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="timeline-meta-row" style={{ justifyContent: "space-between" }}>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <span className={`tl-badge tl-badge-${item.type}`}>
-                          {item.type === "work" ? (
-                            <>
-                              <RiBriefcaseLine size={14} /> Work
-                            </>
-                          ) : (
-                            <>
-                              <RiCupLine size={14} /> Break
-                            </>
-                          )}
-                        </span>
-                        
-                        {!isEditingThis && (
-                          <span className="tl-duration mono">
-                            {fmtDur(item.durationMs)}
-                            {item.isActive && (
-                              <span
-                                className="tl-active-dot"
-                                title="Active session"
-                              />
-                            )}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Editing Actions inline */}
-                      {isEditingThis && (
-                         <div style={{ display: 'flex', gap: '6px' }}>
-                           <button className="btn-secondary" style={{ padding: '4px 10px', fontSize: '0.75rem' }} onClick={cancelEdit}>
-                             Cancel
-                           </button>
-                           <button className="btn-primary" style={{ padding: '4px 10px', fontSize: '0.75rem' }} onClick={() => executeEdit(item)} disabled={!!deletingId}>
-                             {deletingId ? "..." : "Save"}
-                           </button>
-                         </div>
-                      )}
-
-                    </div>
-                    {item.type === "work" && !isEditingThis && (
-                      <div className="tl-position-label">
-                        {item.position === "only" && "only session"}
-                        {item.position === "first" && "first session"}
-                        {item.position === "middle" && "middle session"}
-                        {item.position === "last" &&
-                          (item.isActive ? "active" : "last session")}
-                      </div>
-                    )}
-                  </div>
-
-                  {!item.isActive && !editingId && (
-                     <div style={{ display: 'flex', gap: '4px', flexDirection: 'column' }}>
-                        {item.type === "work" && (
-                          <button
-                            className="tl-delete-btn"
-                            title="Edit this work session"
-                            disabled={!!deletingId}
-                            onClick={() => handleEditClick(item)}
-                          >
-                            <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Edit</span>
-                          </button>
-                        )}
-                        <button
-                          className={[
-                            "tl-delete-btn",
-                            isPendingThis ? "tl-delete-btn-pending" : "",
-                          ]
-                            .filter(Boolean)
-                            .join(" ")}
-                          title={
-                            item.type === "break"
-                              ? "Remove break (merge surrounding sessions)"
-                              : "Delete this work session"
+            <div className="mep-sessions-label">Work Sessions</div>
+            <div className="mep-sessions">
+              {sessions.map((session, i) => (
+                <div key={session.id}>
+                  <div className="mep-session-row">
+                    <div className="mep-session-num">{i + 1}</div>
+                    <div className="mep-time-pair">
+                      <div className="form-group">
+                        <label>In</label>
+                        <input
+                          type="time"
+                          value={session.punchIn}
+                          onChange={(e) =>
+                            updateSession(session.id, "punchIn", e.target.value)
                           }
-                          disabled={!!deletingId}
-                          onClick={() => {
-                            if (isPendingThis) setPendingDelete(null);
-                            else handleDeleteClick(item);
-                          }}
-                        >
-                          {isThisDeleting ? (
-                            <span
-                              className="spinner"
-                              style={{ width: 12, height: 12, borderWidth: 2 }}
-                            />
-                          ) : isPendingThis ? (
-                            <RiCloseLine size={16} />
-                          ) : (
-                            <RiDeleteBinLine size={16} />
-                          )}
-                        </button>
-                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+                        />
+                      </div>
+                      <span className="mep-arrow">→</span>
+                      <div className="form-group">
+                        <label>Out</label>
+                        <input
+                          type="time"
+                          value={session.punchOut}
+                          onChange={(e) =>
+                            updateSession(session.id, "punchOut", e.target.value)
+                          }
+                        />
+                      </div>
+                    </div>
+                    {sessions.length > 1 && (
+                      <button
+                        type="button"
+                        className="mep-remove-btn"
+                        onClick={() => removeSession(session.id)}
+                        title="Remove session"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
 
-        {/* Footer actions */}
-        {timeline.length > 0 && !pendingDelete && !isConfirmingClear && !deletingId && (
-          <div className="day-modal-footer-actions" style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginTop: "16px",
-            borderTop: "1px solid var(--card-border)",
-            paddingTop: "12px"
-          }}>
-            <p className="dm-footer-hint" style={{ margin: 0 }}>
-              <RiDeleteBinLine size={14} /> Click edit or delete to manage your sessions
-            </p>
+                  {/* Break Indicator Between Sessions */}
+                  {i < sessions.length - 1 && (() => {
+                    const breakMin =
+                      timeToMinutes(sessions[i + 1].punchIn) -
+                      timeToMinutes(session.punchOut);
+                    return (
+                      <div className="mep-break-indicator">
+                        <div className="mep-break-line" />
+                        <span
+                          className={`mep-break-label ${breakMin <= 0 ? "invalid" : ""}`}
+                        >
+                          ☕ Break ·{" "}
+                          {breakMin > 0
+                            ? fmtDur(breakMin * 60000)
+                            : "⚠ invalid / overlap"}
+                        </span>
+                        <div className="mep-break-line" />
+                      </div>
+                    );
+                  })()}
+                </div>
+              ))}
+            </div>
+
             <button
-              onClick={() => setIsConfirmingClear(true)}
-              className="btn-danger"
-              disabled={!hasDeletableSessions}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "6px 12px",
-                fontSize: "0.8rem",
-                opacity: hasDeletableSessions ? 1 : 0.5,
-                cursor: hasDeletableSessions ? "pointer" : "not-allowed"
-              }}
+              type="button"
+              className="mep-add-session-btn"
+              onClick={addSession}
+              disabled={isSavingSessions}
             >
-              <RiDeleteBinLine size={14} /> Clear Day Data
+              + Add Another Session
             </button>
+
+            {/* Live Summary */}
+            {editSummary.workMs > 0 && (
+              <div className="mep-summary">
+                <div className="mep-summary-chip work">
+                  <span>⏱ Work</span>
+                  <strong className="mono">{fmtDur(editSummary.workMs)}</strong>
+                </div>
+                {editSummary.breakMs > 0 && (
+                  <div className="mep-summary-chip break">
+                    <span>☕ Break</span>
+                    <strong className="mono">{fmtDur(editSummary.breakMs)}</strong>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="day-modal-edit-footer">
+              <button
+                type="button"
+                className="btn-clear-day"
+                onClick={() => setIsConfirmingClear(true)}
+                disabled={!hasDeletableSessions || isSavingSessions || isClearingDay}
+                title={`Clear all data recorded for ${date}`}
+              >
+                <span className="btn-clear-day-icon">
+                  <RiDeleteBinLine size={16} />
+                </span>
+                <span>Clear All {date}&apos;s Data</span>
+              </button>
+
+              <div className="dm-edit-save-group">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleCancelEdit}
+                  disabled={isSavingSessions}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleSaveSessions}
+                  disabled={isSavingSessions}
+                >
+                  {isSavingSessions ? (
+                    <span className="btn-loading">
+                      <span className="spinner" />
+                      Saving...
+                    </span>
+                  ) : (
+                    "💾 Save Day Record"
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
+        ) : (
+          <>
+            {timeline.length === 0 ? (
+              <div className="day-modal-empty-state">
+                <p className="day-modal-empty">No sessions recorded for this day.</p>
+                <button
+                  type="button"
+                  className="btn-primary btn-empty-action"
+                  onClick={handleStartEditSessions}
+                >
+                  <RiAddLine size={16} /> Add Day Record
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="day-modal-section-header">
+                  <span className="dm-section-title">
+                    <RiTimeLine size={16} /> Work Sessions ({workItems.length})
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-edit-sessions"
+                    onClick={handleStartEditSessions}
+                  >
+                    <RiEditLine size={14} /> Edit Sessions
+                  </button>
+                </div>
+
+                <div className="day-timeline">
+                  {timeline.map((item, idx) => {
+                    const isLast = idx === timeline.length - 1;
+
+                    return (
+                      <div
+                        key={item.key}
+                        className={[
+                          "timeline-item",
+                          `timeline-item-${item.type}`,
+                          item.isActive ? "timeline-active" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                      >
+                        <div className="timeline-dot-col">
+                          <div className="timeline-dot" />
+                          {!isLast && <div className="timeline-connector" />}
+                        </div>
+
+                        <div className="timeline-body">
+                          <div className="timeline-times mono">
+                            <span>{fmtT(item.start, timeFormat)}</span>
+                            <RiArrowRightLine className="timeline-arrow" size={14} />
+                            <span>
+                              {item.isActive ? (
+                                <span className="session-ongoing">now</span>
+                              ) : (
+                                fmtT(item.end, timeFormat)
+                              )}
+                            </span>
+                          </div>
+
+                          <div className="timeline-meta-row">
+                            <div className="tl-meta-left">
+                              <span className={`tl-badge tl-badge-${item.type}`}>
+                                {item.type === "work" ? (
+                                  <>
+                                    <RiBriefcaseLine size={14} /> Work
+                                  </>
+                                ) : (
+                                  <>
+                                    <RiCupLine size={14} /> Break
+                                  </>
+                                )}
+                              </span>
+
+                              <span className="tl-duration mono">
+                                {fmtDur(item.durationMs)}
+                                {item.isActive && (
+                                  <span
+                                    className="tl-active-dot"
+                                    title="Active session"
+                                  />
+                                )}
+                              </span>
+                            </div>
+                          </div>
+
+                          {item.type === "work" && (
+                            <div className="tl-position-label">
+                              {item.position === "only" && "only session"}
+                              {item.position === "first" && "first session"}
+                              {item.position === "middle" && "middle session"}
+                              {item.position === "last" &&
+                                (item.isActive ? "active" : "last session")}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+          </>
         )}
         </div>
       </div>
 
-      {/* Delete / Merge confirmation modal */}
-      {pendingDelete && (
-        <ConfirmationModal
-          title={pendingDelete.item.type === "break" ? "Remove Break" : "Delete Session"}
-          message={getConfirmMessage(pendingDelete.item)}
-          confirmText={pendingDelete.item.type === "break" ? "Merge Sessions" : "Delete"}
-          confirmBtnClass="btn-danger"
-          onClose={handleCancel}
-          onConfirm={handleConfirm}
-          isLoading={!!deletingId}
-        />
-      )}
-
       {/* Clear Day confirmation modal */}
       {isConfirmingClear && (
         <ConfirmationModal
-          title="Clear Day Data"
+          title={`Clear All ${date}'s Data`}
           message={
             date === new Date().toLocaleDateString("en-CA")
               ? "Are you sure you want to clear all completed sessions for today? Your active timer will not be affected."
               : `Are you sure you want to clear all sessions for ${displayDate}?`
           }
-          confirmText="Clear Day"
-          confirmBtnClass="btn-danger"
+          confirmText={`Clear All ${date}'s Data`}
+          confirmBtnClass="btn-modal-danger"
           onClose={() => setIsConfirmingClear(false)}
           onConfirm={executeClearDay}
-          isLoading={deletingId === "clear-day-action"}
+          isLoading={isClearingDay}
         />
       )}
     </div>
@@ -897,35 +884,26 @@ export function ConfirmationModal({
   title,
   message,
   confirmText,
-  confirmBtnClass = "btn-danger",
+  confirmBtnClass = "btn-modal-danger",
   onClose,
   onConfirm,
   isLoading = false,
 }: ConfirmationModalProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return null;
+  if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="modal-overlay" style={{ zIndex: 300 }} onClick={onClose}>
+    <div className="modal-overlay confirmation-modal-overlay" onClick={onClose}>
       <div
-        className="modal-card animate-in"
-        style={{ maxWidth: "400px", padding: "24px" }}
+        className="modal-card confirmation-modal-card animate-in"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="modal-header modal-header-centered" style={{ marginBottom: "16px" }}>
+        <div className="modal-header modal-header-centered confirmation-modal-header">
           <h2>{title}</h2>
         </div>
-        <div className="modal-body" style={{ textAlign: "center", padding: "10px 0" }}>
-          <p style={{ fontSize: "0.95rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
-            {message}
-          </p>
+        <div className="modal-body confirmation-modal-body">
+          <p>{message}</p>
         </div>
-        <div className="modal-footer" style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
+        <div className="modal-footer confirmation-modal-footer">
           <button
             type="button"
             className="btn-secondary"
@@ -940,7 +918,14 @@ export function ConfirmationModal({
             onClick={onConfirm}
             disabled={isLoading}
           >
-            {isLoading ? "Processing..." : confirmText}
+            {isLoading ? (
+              <span className="btn-loading">
+                <span className="spinner" />
+                Processing...
+              </span>
+            ) : (
+              confirmText
+            )}
           </button>
         </div>
       </div>

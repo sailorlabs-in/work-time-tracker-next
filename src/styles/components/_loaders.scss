@@ -1,0 +1,103 @@
+@use "../base/mixins" as *;
+
+/* ═══════════════════════════════════════════════
+   GLOBAL LOADERS & PROGRESS BARS
+   ═══════════════════════════════════════════════ */
+
+/* ── Top Navigation Progress Bar ── */
+.nav-progress-bar-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  z-index: 99999;
+  pointer-events: none;
+  background: transparent;
+}
+
+.nav-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-primary) 0%, #ff8a48 50%, #c084fc 100%);
+  box-shadow: 0 0 14px rgba(232, 133, 74, 0.75), 0 0 6px rgba(192, 132, 252, 0.5);
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+
+  &.done {
+    opacity: 0;
+  }
+}
+
+/* ── Global Full-Page Loading State ── */
+.global-loading-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 160px);
+  width: 100%;
+  padding: 40px 20px;
+}
+
+.global-loading-card {
+  @include glass-card;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 40px 48px;
+  border-radius: var(--radius-xl);
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  box-shadow: var(--shadow-card), var(--shadow-glow);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.global-loading-icon-wrapper {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.global-loading-spinner-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid var(--accent-subtle);
+  border-top-color: var(--accent-primary);
+  animation: spin 0.85s linear infinite;
+}
+
+.global-loading-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 2px 8px rgba(232, 133, 74, 0.25));
+}
+
+.global-loading-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.global-loading-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  color: var(--text-main);
+  letter-spacing: -0.01em;
+}
+
+.global-loading-subtitle {
+  font-size: 0.86rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}

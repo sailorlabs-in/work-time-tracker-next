@@ -287,12 +287,10 @@ export default function CalendarClient({
           holidayUrlParams.push(`userId=${encodeURIComponent(adminUserId)}`);
         }
         const holidayUrl = `/api/holidays${holidayUrlParams.length > 0 ? `?${holidayUrlParams.join("&")}` : ""}`;
-        const notesUrl = `/api/notes${queryParams.length > 0 ? `?${queryParams.join("&")}` : ""}`;
 
-        const [res, holRes, notesRes] = await Promise.all([
+        const [res, holRes] = await Promise.all([
           fetch(url),
           fetch(holidayUrl),
-          fetch(notesUrl),
         ]);
 
         // Also fetch effective weekend policy (not for admin views)
@@ -326,7 +324,17 @@ export default function CalendarClient({
         let fetchedNotes: DayNote[] = notes;
 
         if (res.ok) {
-          fetchedEvents = await res.json();
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            fetchedEvents = data;
+          } else {
+            fetchedEvents = data.events || [];
+            if (Array.isArray(data.notes)) {
+              fetchedNotes = data.notes;
+              setNotes(fetchedNotes);
+            }
+          }
+
           setEvents(fetchedEvents);
           const extracted = fetchedEvents
             .filter((e) => e.extendedProps.type === "work")
@@ -341,11 +349,6 @@ export default function CalendarClient({
           setHolidays(fetchedHolidays);
         }
 
-        if (notesRes.ok) {
-          fetchedNotes = await notesRes.json();
-          setNotes(fetchedNotes);
-        }
-
         // Persist to cache for offline use
         saveCalendarCache(fetchedEvents, fetchedHolidays, fetchedNotes);
       } catch (err) {
@@ -354,7 +357,6 @@ export default function CalendarClient({
         setDataLoading(false);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [adminUserId, isOffline, events, holidays, notes],
   );
 
@@ -543,11 +545,13 @@ export default function CalendarClient({
       {/* Full-width Calendar */}
       <div
         className={`glass-card calendar-wrapper animate-in${isOffline ? " calendar-offline-mode" : ""}`}
-        style={{ position: "relative" }}
       >
         {dataLoading && (
-          <div className="calendar-data-loading">
-            <div className="spinner" />
+          <div className="calendar-data-loading-overlay">
+            <div className="calendar-loading-badge">
+              <div className="calendar-loading-spinner" />
+              <span>Updating schedule...</span>
+            </div>
           </div>
         )}
         <FullCalendar
@@ -745,7 +749,6 @@ export default function CalendarClient({
           weekendPolicy={weekendPolicy}
           onRefresh={() => {
             fetchLogs();
-            setDayModalDate(null);
           }}
         />
       )}

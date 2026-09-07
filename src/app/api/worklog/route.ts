@@ -14,9 +14,29 @@ export async function GET(req: Request) {
     const startDate = searchParams.get("startDate") || undefined;
     const endDate = searchParams.get("endDate") || undefined;
 
-    const events = await getWorkLogs(session.user.id, startDate, endDate);
+    const eventsPromise = getWorkLogs(session.user.id, startDate, endDate);
 
-    return NextResponse.json(events);
+    // Fetch notes together with worklogs for the date range
+    let notesPromise: Promise<unknown[]> = Promise.resolve([]);
+    if (startDate && endDate) {
+      const start = new Date(startDate.split("T")[0]);
+      const end = new Date(endDate.split("T")[0]);
+      notesPromise = prisma.dayNote.findMany({
+        where: {
+          userId: session.user.id,
+          date: { gte: start, lte: end },
+        },
+      });
+    } else {
+      notesPromise = prisma.dayNote.findMany({
+        where: { userId: session.user.id },
+        orderBy: { date: "desc" },
+      });
+    }
+
+    const [events, notes] = await Promise.all([eventsPromise, notesPromise]);
+
+    return NextResponse.json({ events, notes });
   } catch (error) {
     console.error("Fetch logs error:", error);
     return NextResponse.json(
@@ -38,9 +58,10 @@ export async function POST(req: Request) {
 
     // ── Bulk: create multiple completed sessions (past-day manual entry) ──
     if (type === "bulk") {
-      const { sessions, date: bulkDate } = body as {
+      const { sessions, date: bulkDate, replaceExisting } = body as {
         sessions: { punchIn: string; punchOut: string; totalHours: number }[];
         date: string;
+        replaceExisting?: boolean;
       };
 
       if (!sessions || !Array.isArray(sessions) || sessions.length === 0) {
@@ -50,8 +71,37 @@ export async function POST(req: Request) {
         );
       }
 
-      const logs = await prisma.$transaction(
-        sessions.map((s) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const operations: any[] = [];
+
+      if (replaceExisting) {
+        const localStart = new Date(`${bulkDate}T00:00:00`);
+        const localEnd = new Date(`${bulkDate}T23:59:59.999`);
+        const utcStart = new Date(`${bulkDate}T00:00:00.000Z`);
+        const utcEnd = new Date(`${bulkDate}T23:59:59.999Z`);
+        const minStart = localStart < utcStart ? localStart : utcStart;
+        const maxEnd = localEnd > utcEnd ? localEnd : utcEnd;
+
+        const todayDateStr = new Date().toLocaleDateString("en-CA");
+        const isToday = bulkDate === todayDateStr;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const deleteWhere: any = {
+          userId: session.user.id,
+          OR: [
+            { date: { gte: minStart, lte: maxEnd } },
+            { punchIn: { gte: minStart, lte: maxEnd } },
+          ],
+        };
+        if (isToday) {
+          deleteWhere.status = { not: "active" };
+        }
+
+        operations.push(prisma.workLog.deleteMany({ where: deleteWhere }));
+      }
+
+      sessions.forEach((s) => {
+        operations.push(
           prisma.workLog.create({
             data: {
               userId: session.user.id,
@@ -62,8 +112,11 @@ export async function POST(req: Request) {
               status: "completed",
             },
           }),
-        ),
-      );
+        );
+      });
+
+      const results = await prisma.$transaction(operations);
+      const logs = replaceExisting ? results.slice(1) : results;
 
       return NextResponse.json(logs, { status: 201 });
     }
