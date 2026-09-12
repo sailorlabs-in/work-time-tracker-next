@@ -15,6 +15,8 @@ import {
   RiTimeLine,
   RiStopCircleLine,
   RiEyeLine,
+  RiBug2Line,
+  RiSparklingLine,
 } from "@remixicon/react";
 import CalendarClient from "@/app/calendar/_components/CalendarClient";
 
@@ -114,6 +116,179 @@ function formatElapsed(ms: number): string {
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
   return `${h}h ${m}m`;
+}
+
+function CleanupZombiesModal({
+  users,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  users: AdminUser[];
+  onClose: () => void;
+  onConfirm: (userId?: string) => Promise<void>;
+  isLoading: boolean;
+}) {
+  const [selectedUserId, setSelectedUserId] = useState<string>("all");
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="modal-overlay confirmation-modal-overlay" onClick={onClose}>
+      <div
+        className="modal-card confirmation-modal-card animate-in"
+        style={{ maxWidth: "500px", padding: "26px" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="modal-header confirmation-modal-header"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            marginBottom: "16px",
+          }}
+        >
+          <div
+            style={{
+              width: "40px",
+              height: "40px",
+              borderRadius: "50%",
+              background: "rgba(139, 92, 246, 0.15)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#8b5cf6",
+              flexShrink: 0,
+            }}
+          >
+            <RiBug2Line size={24} />
+          </div>
+          <div style={{ textAlign: "left" }}>
+            <h2 style={{ fontSize: "1.2rem", margin: 0 }}>Cleanup Zombie Sessions</h2>
+            <p className="text-muted" style={{ fontSize: "0.85rem", margin: "2px 0 0 0" }}>
+              Fix sessions spanning multiple days
+            </p>
+          </div>
+        </div>
+
+        <div
+          className="modal-body confirmation-modal-body"
+          style={{ textAlign: "left", padding: "8px 0" }}
+        >
+          <div
+            style={{
+              padding: "12px 14px",
+              borderRadius: "8px",
+              background: "var(--card-bg-light, rgba(255,255,255,0.04))",
+              border: "1px solid var(--card-border)",
+              marginBottom: "16px",
+              fontSize: "0.88rem",
+            }}
+          >
+            <p style={{ margin: "0 0 8px 0", color: "var(--text-primary)" }}>
+              <strong>What are zombie sessions?</strong>
+            </p>
+            <p style={{ margin: "0 0 8px 0", color: "var(--text-secondary)" }}>
+              Sessions where the timer was never stopped (e.g. cron was down), causing the
+              punchOut timestamp to fall on a completely different day. These show
+              durations like <strong>259h</strong> or <strong>23h</strong>.
+            </p>
+            <p style={{ margin: 0, color: "var(--text-secondary)" }}>
+              Fix: each zombie session's <code>punchOut</code> will be capped to{" "}
+              <strong>23:59:00 IST</strong> of the day it started on.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: "16px" }}>
+            <label
+              htmlFor="cleanup-user-select"
+              style={{ display: "block", fontSize: "0.85rem", marginBottom: "6px", color: "var(--text-secondary)" }}
+            >
+              Apply to:
+            </label>
+            <select
+              id="cleanup-user-select"
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                borderRadius: "8px",
+                background: "var(--input-bg, rgba(255,255,255,0.06))",
+                border: "1px solid var(--card-border)",
+                color: "var(--text-primary)",
+                fontSize: "0.9rem",
+                cursor: "pointer",
+              }}
+            >
+              <option value="all">All Users</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name || u.email} ({u.email})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: "12px",
+            justifyContent: "flex-end",
+            marginTop: "8px",
+          }}
+        >
+          <button
+            className="btn-secondary"
+            onClick={onClose}
+            disabled={isLoading}
+            style={{ padding: "10px 20px" }}
+          >
+            Cancel
+          </button>
+          <button
+            className="btn-primary"
+            disabled={isLoading}
+            onClick={() =>
+              onConfirm(selectedUserId === "all" ? undefined : selectedUserId)
+            }
+            style={{
+              padding: "10px 20px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "linear-gradient(135deg, #8b5cf6, #6d28d9)",
+            }}
+          >
+            {isLoading ? (
+              <>
+                <span
+                  style={{
+                    width: "14px",
+                    height: "14px",
+                    border: "2px solid rgba(255,255,255,0.3)",
+                    borderTopColor: "#fff",
+                    borderRadius: "50%",
+                    animation: "spin 0.7s linear infinite",
+                    display: "inline-block",
+                  }}
+                />
+                Fixing...
+              </>
+            ) : (
+              <>
+                <RiSparklingLine size={16} />
+                Run Cleanup
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
 }
 
 function StopTimerModal({
@@ -293,6 +468,8 @@ function UserTimelogsTab({ timeFormat }: { timeFormat?: string }) {
   const [userToStop, setUserToStop] = useState<AdminUser | null>(null);
   const [isStopping, setIsStopping] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [showCleanupModal, setShowCleanupModal] = useState(false);
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
 
   const loadUsers = async () => {
     try {
@@ -353,6 +530,35 @@ function UserTimelogsTab({ timeFormat }: { timeFormat?: string }) {
     }
   };
 
+  const handleCleanupZombies = async (userId?: string) => {
+    setIsCleaningUp(true);
+    setFeedback(null);
+    try {
+      const res = await fetch("/api/admin/timers/cleanup-zombies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(userId ? { userId } : {}),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setFeedback({
+          type: "success",
+          text: data.message || `Fixed ${data.fixed} zombie session(s).`,
+        });
+        setShowCleanupModal(false);
+      } else {
+        setFeedback({
+          type: "error",
+          text: data.error || "Cleanup failed.",
+        });
+      }
+    } catch {
+      setFeedback({ type: "error", text: "Network error during cleanup." });
+    } finally {
+      setIsCleaningUp(false);
+    }
+  };
+
   if (loading)
     return (
       <div className="page-loader">
@@ -364,7 +570,20 @@ function UserTimelogsTab({ timeFormat }: { timeFormat?: string }) {
 
   return (
     <div className="glass-card animate-in">
-      <h2>Select User to View Timelogs</h2>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+        <h2 style={{ margin: 0 }}>Select User to View Timelogs</h2>
+        {!selectedUser && (
+          <button
+            className="btn-secondary"
+            onClick={() => setShowCleanupModal(true)}
+            style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", padding: "8px 14px" }}
+            title="Detect and fix sessions that span multiple days due to cron failures"
+          >
+            <RiBug2Line size={16} />
+            Cleanup Zombie Sessions
+          </button>
+        )}
+      </div>
 
       {selectedUser ? (
         <div className="admin-calendar-view" style={{ marginTop: "16px" }}>
@@ -533,6 +752,15 @@ function UserTimelogsTab({ timeFormat }: { timeFormat?: string }) {
               onClose={() => setUserToStop(null)}
               onConfirm={handleConfirmStop}
               isLoading={isStopping}
+            />
+          )}
+
+          {showCleanupModal && (
+            <CleanupZombiesModal
+              users={users}
+              onClose={() => setShowCleanupModal(false)}
+              onConfirm={handleCleanupZombies}
+              isLoading={isCleaningUp}
             />
           )}
         </>

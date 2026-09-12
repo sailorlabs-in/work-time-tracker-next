@@ -736,6 +736,7 @@ export default function CalendarClient({
           workDurationMs={workDurationMs}
           note={notesMap[dayModalDate]}
           weekendPolicy={weekendPolicy}
+          adminUserId={adminUserId}
           onRefresh={() => {
             fetchLogs();
           }}

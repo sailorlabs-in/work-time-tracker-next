@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
  * POST /api/worklog/delete-session
  *
  * Handler for clearing day records from the calendar.
+ * Supports optional `targetUserId` for admin acting on behalf of another user.
  */
 export async function POST(req: Request) {
   try {
@@ -15,7 +16,27 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { action } = body as { action?: string };
+    const { action, targetUserId } = body as {
+      action?: string;
+      targetUserId?: string;
+    };
+
+    // Resolve the effective user ID
+    let effectiveUserId = session.user.id;
+    if (targetUserId && targetUserId !== session.user.id) {
+      // Verify that the caller is an admin before allowing cross-user operations
+      const callerUser = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { isAdmin: true },
+      });
+      if (!callerUser?.isAdmin) {
+        return NextResponse.json(
+          { error: "Forbidden: admin access required" },
+          { status: 403 },
+        );
+      }
+      effectiveUserId = targetUserId;
+    }
 
     // ── CLEAR DAY ────────────────────────────────────────────────────────────
     if (action === "clear-day") {
@@ -29,12 +50,13 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Missing date" }, { status: 400 });
       }
 
-      const dayStart = new Date(`${date}T00:00:00`);
-      const dayEnd = new Date(`${date}T23:59:59.999`);
+      // Use UTC-based date range to match how Prisma stores dates
+      const dayStart = new Date(`${date}T00:00:00.000Z`);
+      const dayEnd = new Date(`${date}T23:59:59.999Z`);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const whereClause: any = {
-        userId: session.user.id,
+        userId: effectiveUserId,
         date: { gte: dayStart, lte: dayEnd },
       };
 
@@ -48,14 +70,14 @@ export async function POST(req: Request) {
 
       if (!isToday) {
         const timerState = await prisma.timerState.findUnique({
-          where: { userId: session.user.id },
+          where: { userId: effectiveUserId },
         });
         if (timerState && timerState.startTime) {
           const startTimeMs = Number(timerState.startTime);
           const startDayStr = new Date(startTimeMs).toISOString().split("T")[0];
           if (startDayStr === date) {
             await prisma.timerState.delete({
-              where: { userId: session.user.id },
+              where: { userId: effectiveUserId },
             });
           }
         }
