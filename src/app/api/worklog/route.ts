@@ -55,6 +55,23 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const { type, time, totalHours, date } = body;
+    const { targetUserId } = body as { targetUserId?: string };
+
+    // Resolve effective user (admin can act on behalf of another user)
+    let effectiveUserId = session.user.id;
+    if (targetUserId && targetUserId !== session.user.id) {
+      const callerUser = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { isAdmin: true },
+      });
+      if (!callerUser?.isAdmin) {
+        return NextResponse.json(
+          { error: "Forbidden: admin access required" },
+          { status: 403 },
+        );
+      }
+      effectiveUserId = targetUserId;
+    }
 
     // ── Bulk: create multiple completed sessions (past-day manual entry) ──
     if (type === "bulk") {
@@ -87,7 +104,7 @@ export async function POST(req: Request) {
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const deleteWhere: any = {
-          userId: session.user.id,
+          userId: effectiveUserId,
           OR: [
             { date: { gte: minStart, lte: maxEnd } },
             { punchIn: { gte: minStart, lte: maxEnd } },
@@ -104,7 +121,7 @@ export async function POST(req: Request) {
         operations.push(
           prisma.workLog.create({
             data: {
-              userId: session.user.id,
+              userId: effectiveUserId,
               date: new Date(bulkDate),
               punchIn: new Date(s.punchIn),
               punchOut: new Date(s.punchOut),

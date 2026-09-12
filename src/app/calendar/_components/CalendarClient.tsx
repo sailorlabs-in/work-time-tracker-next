@@ -282,46 +282,40 @@ export default function CalendarClient({
           url += `?${queryParams.join("&")}`;
         }
 
-        const holidayUrlParams = [...queryParams];
+        const policyUrlParams = [...queryParams];
         if (adminUserId) {
-          holidayUrlParams.push(`userId=${encodeURIComponent(adminUserId)}`);
+          policyUrlParams.push(`userId=${encodeURIComponent(adminUserId)}`);
         }
-        const holidayUrl = `/api/holidays${holidayUrlParams.length > 0 ? `?${holidayUrlParams.join("&")}` : ""}`;
+        const policyUrl = `/api/user/effective-policy${policyUrlParams.length > 0 ? `?${policyUrlParams.join("&")}` : ""}`;
 
-        const [res, holRes] = await Promise.all([
+        const [res, policyRes] = await Promise.all([
           fetch(url),
-          fetch(holidayUrl),
+          fetch(policyUrl),
         ]);
-
-        // Also fetch effective weekend policy (not for admin views)
-        if (!adminUserId) {
-          try {
-            const policyUrl = `/api/user/effective-policy${queryParams.length > 0 ? `?${queryParams.join("&")}` : ""}`;
-            const policyRes = await fetch(policyUrl);
-            if (policyRes.ok) {
-              const policyData = await policyRes.json();
-              if (policyData.weekendPolicy) {
-                setWeekendPolicy(policyData.weekendPolicy);
-              }
-              // If the effective policy returns holidays, use those instead
-              if (policyData.holidays) {
-                const effectiveHolidays = policyData.holidays.map((h: Holiday) => ({
-                  id: h.id,
-                  name: h.name,
-                  date: h.date,
-                  durationMinutes: h.durationMinutes,
-                }));
-                setHolidays(effectiveHolidays);
-              }
-            }
-          } catch {
-            // Fall back to default policy
-          }
-        }
 
         let fetchedEvents: CalendarEvent[] = events;
         let fetchedHolidays: Holiday[] = holidays;
         let fetchedNotes: DayNote[] = notes;
+
+        if (policyRes.ok) {
+          try {
+            const policyData = await policyRes.json();
+            if (policyData.weekendPolicy) {
+              setWeekendPolicy(policyData.weekendPolicy);
+            }
+            if (Array.isArray(policyData.holidays)) {
+              fetchedHolidays = policyData.holidays.map((h: Holiday) => ({
+                id: h.id,
+                name: h.name,
+                date: h.date,
+                durationMinutes: h.durationMinutes,
+              }));
+              setHolidays(fetchedHolidays);
+            }
+          } catch {
+            // Fall back to default
+          }
+        }
 
         if (res.ok) {
           const data = await res.json();
@@ -329,7 +323,8 @@ export default function CalendarClient({
             fetchedEvents = data;
           } else {
             fetchedEvents = data.events || [];
-            if (Array.isArray(data.notes)) {
+            // Only update notes when viewing own calendar (not admin view of another user)
+            if (!adminUserId && Array.isArray(data.notes)) {
               fetchedNotes = data.notes;
               setNotes(fetchedNotes);
             }
@@ -342,11 +337,6 @@ export default function CalendarClient({
           setLogs(
             Array.from(new Map(extracted.map((l) => [l.id, l])).values()),
           );
-        }
-
-        if (holRes.ok) {
-          fetchedHolidays = await holRes.json();
-          setHolidays(fetchedHolidays);
         }
 
         // Persist to cache for offline use
@@ -747,6 +737,7 @@ export default function CalendarClient({
           workDurationMs={workDurationMs}
           note={notesMap[dayModalDate]}
           weekendPolicy={weekendPolicy}
+          adminUserId={adminUserId}
           onRefresh={() => {
             fetchLogs();
           }}

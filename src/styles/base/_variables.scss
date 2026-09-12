@@ -3,13 +3,13 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════
-   WorkTracker — Pastel Orange & Slate Gray Theme
-   Light mode default · Dark/Light/System toggle
+   Dev-WorkTracker — Modern SaaS Glassmorphism Design System
    ═══════════════════════════════════════════════════════════ */
 
 /* ─── LIGHT MODE (Default) ─── */
 :root,
 [data-theme="light"] {
+  color-scheme: light;
   --bg-color: #f5f3f0;
   --bg-secondary: #eae7e2;
   --card-bg: rgba(255, 255, 255, 0.85);
@@ -20,12 +20,15 @@
   --text-muted: #6b7280;
   --text-dim: #9ca3af;
   --accent-primary: #e8854a;
+  --accent-hover: #d4723a;
   --accent-glow: rgba(232, 133, 74, 0.3);
   --accent-secondary: #f0a06a;
   --accent-light: #d4723a;
   --accent-subtle: rgba(232, 133, 74, 0.08);
+  --accent-subtle-border: rgba(232, 133, 74, 0.25);
   --danger: #e54d4d;
   --danger-bg: rgba(229, 77, 77, 0.08);
+  --danger-border: rgba(229, 77, 77, 0.25);
   --success: #2eae5b;
   --success-bg: rgba(46, 174, 91, 0.08);
   --warning: #d4943a;
@@ -35,6 +38,7 @@
   --slate-bg: rgba(100, 116, 139, 0.06);
   --input-bg: #ffffff;
   --input-border: #d1d5db;
+  --select-bg: #ffffff;
   --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.08);
   --shadow-glow: 0 0 40px rgba(232, 133, 74, 0.1);
   --navbar-bg: rgba(245, 243, 240, 0.85);
@@ -44,6 +48,7 @@
 
 /* ─── DARK MODE ─── */
 [data-theme="dark"] {
+  color-scheme: dark;
   --bg-color: #111318;
   --bg-secondary: #181b22;
   --card-bg: rgba(26, 29, 38, 0.85);
@@ -54,12 +59,15 @@
   --text-muted: #8b8d94;
   --text-dim: #555860;
   --accent-primary: #e8854a;
+  --accent-hover: #f0a06a;
   --accent-glow: rgba(232, 133, 74, 0.4);
   --accent-secondary: #f0a06a;
   --accent-light: #f5b88a;
   --accent-subtle: rgba(232, 133, 74, 0.1);
+  --accent-subtle-border: rgba(232, 133, 74, 0.25);
   --danger: #ff6b6b;
   --danger-bg: rgba(255, 107, 107, 0.1);
+  --danger-border: rgba(255, 107, 107, 0.25);
   --success: #4ade80;
   --success-bg: rgba(74, 222, 128, 0.1);
   --warning: #fbbf24;
@@ -69,6 +77,7 @@
   --slate-bg: rgba(100, 116, 139, 0.1);
   --input-bg: rgba(15, 17, 22, 0.8);
   --input-border: rgba(100, 116, 139, 0.25);
+  --select-bg: #181b22;
   --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.6);
   --shadow-glow: 0 0 40px rgba(232, 133, 74, 0.15);
   --navbar-bg: rgba(17, 19, 24, 0.85);
@@ -82,5 +91,6 @@
   --radius-md: 14px;
   --radius-lg: 20px;
   --radius-xl: 28px;
+  --radius-full: 9999px;
   --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }

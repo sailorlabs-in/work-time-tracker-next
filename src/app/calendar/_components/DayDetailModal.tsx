@@ -82,6 +82,8 @@ interface Props {
   weekendPolicy?: WeekendPolicyData;
   onClose: () => void;
   onRefresh: () => void;
+  /** When set, the modal is operating in admin mode on behalf of this user */
+  adminUserId?: string;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -117,6 +119,7 @@ export default function DayDetailModal({
   weekendPolicy = DEFAULT_WEEKEND_POLICY,
   onClose,
   onRefresh,
+  adminUserId,
 }: Props) {
   const [isClearingDay, setIsClearingDay] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -144,6 +147,7 @@ export default function DayDetailModal({
         body: JSON.stringify({
           date,
           note: localNote,
+          ...(adminUserId ? { targetUserId: adminUserId } : {}),
         }),
       });
 
@@ -178,6 +182,7 @@ export default function DayDetailModal({
           action: "clear-day",
           date,
           isToday,
+          ...(adminUserId ? { targetUserId: adminUserId } : {}),
         }),
       });
 
@@ -436,6 +441,7 @@ export default function DayDetailModal({
           date,
           sessions: sessionData,
           replaceExisting: true,
+          ...(adminUserId ? { targetUserId: adminUserId } : {}),
         }),
       });
 
@@ -530,7 +536,8 @@ export default function DayDetailModal({
 
 
 
-        {/* Day Notes Section */}
+        {/* Day Notes Section — hidden in admin view */}
+        {!adminUserId && (
         <div className="day-modal-notes-section">
           <div className="dm-notes-header">
             <span className="dm-notes-title">
@@ -583,6 +590,7 @@ export default function DayDetailModal({
             </p>
           )}
         </div>
+        )}
 
         {/* Sessions Content: Editing Mode or Timeline View */}
         {isEditingSessions ? (

@@ -20,9 +20,15 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
+    const requestedUserId = searchParams.get("userId");
+
+    const targetUserId =
+      session.user.isAdmin && requestedUserId
+        ? requestedUserId
+        : session.user.id;
 
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: targetUserId },
       select: { useServerPolicy: true },
     });
 
@@ -77,7 +83,7 @@ export async function GET(req: Request) {
     } else {
       // Use user's custom policy
       const userPolicy = await prisma.userWeekendPolicy.findUnique({
-        where: { userId: session.user.id },
+        where: { userId: targetUserId },
       });
       if (userPolicy) {
         weekendPolicy = {
@@ -89,7 +95,7 @@ export async function GET(req: Request) {
 
       // Use user's custom holidays
       const userHolidays = await prisma.userHoliday.findMany({
-        where: { userId: session.user.id, ...dateFilter },
+        where: { userId: targetUserId, ...dateFilter },
         orderBy: { date: "desc" },
       });
       holidays = userHolidays.map((h) => ({

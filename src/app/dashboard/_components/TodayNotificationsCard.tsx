@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   RiNotification3Line,
   RiTimeLine,
@@ -66,20 +66,8 @@ export default function TodayNotificationsCard({
 
   return (
     <div className="notes-card glass-card animate-in">
-      <div
-        className="notes-header"
-        style={{
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-          }}
-        >
+      <div className="notif-header">
+        <div className="notif-header-left">
           <span className="notes-header-icon">
             <RiNotification3Line size={20} />
           </span>
@@ -88,52 +76,29 @@ export default function TodayNotificationsCard({
         {!showAddForm && (
           <button
             onClick={() => setShowAddForm(true)}
-            className="btn-primary"
-            style={{
-              padding: "4px 10px",
-              fontSize: "0.75rem",
-              borderRadius: "6px",
-            }}
+            className="btn-add-alert"
           >
             + Add Alert
           </button>
         )}
       </div>
-      <div className="notes-body" style={{ padding: "16px 20px" }}>
+      <div className="notif-body">
         {showAddForm && (
           <form
             onSubmit={handleAddNotificationSubmit}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "12px",
-              marginBottom: "16px",
-              paddingBottom: "16px",
-              borderBottom: "1px solid var(--card-border)",
-            }}
+            className="notif-add-form"
           >
             {formError && (
-              <div
-                style={{
-                  fontSize: "0.75rem",
-                  color: "var(--danger-color)",
-                }}
-              >
+              <div className="notif-form-error">
                 {formError}
               </div>
             )}
 
-            <div className="form-group" style={{ margin: 0 }}>
-              <label
-                style={{
-                  fontSize: "0.75rem",
-                  fontWeight: "600",
-                  marginBottom: "4px",
-                }}
-              >
-                Alert Type
-              </label>
+            <div className="form-group">
+              <label htmlFor="notifType">Alert Type</label>
               <select
+                id="notifType"
+                className="notif-select"
                 value={newNotifType}
                 onChange={(e) => {
                   const type = e.target.value as "time" | "complete" | "overtime" | "punch_out";
@@ -149,16 +114,6 @@ export default function TodayNotificationsCard({
                     setNewNotifValue("00:15");
                   }
                 }}
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--card-border)",
-                  background: "var(--card-bg)",
-                  color: "var(--text-main)",
-                  fontSize: "0.85rem",
-                  width: "100%",
-                  outline: "none",
-                }}
               >
                 <option value="time">Notify me at (local time)</option>
                 <option value="complete">
@@ -173,17 +128,12 @@ export default function TodayNotificationsCard({
               </select>
             </div>
 
-            <div className="form-group" style={{ margin: 0 }}>
-              <label
-                style={{
-                  fontSize: "0.75rem",
-                  fontWeight: "600",
-                  marginBottom: "4px",
-                }}
-              >
+            <div className="form-group">
+              <label htmlFor="notifValue">
                 {newNotifType === "time" ? "Clock Time" : "Duration (HH:MM)"}
               </label>
               <input
+                id="notifValue"
                 type={newNotifType === "time" ? "time" : "text"}
                 placeholder={
                   newNotifType === "time" ? undefined : "e.g. 08:00 or 00:15"
@@ -191,57 +141,23 @@ export default function TodayNotificationsCard({
                 value={newNotifValue}
                 onChange={(e) => setNewNotifValue(e.target.value)}
                 required
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--card-border)",
-                  background: "var(--card-bg)",
-                  color: "var(--text-main)",
-                  fontSize: "0.85rem",
-                  width: "100%",
-                  outline: "none",
-                }}
               />
             </div>
 
             {newNotifType === "time" && (
-              <div className="form-group" style={{ margin: 0 }}>
-                <label
-                  style={{
-                    fontSize: "0.75rem",
-                    fontWeight: "600",
-                    marginBottom: "4px",
-                  }}
-                >
-                  Title / Reason
-                </label>
+              <div className="form-group">
+                <label htmlFor="notifTitle">Title / Reason</label>
                 <input
+                  id="notifTitle"
                   type="text"
                   placeholder="e.g. Go home, Standup meeting"
                   value={newNotifTitle}
                   onChange={(e) => setNewNotifTitle(e.target.value)}
-                  style={{
-                    padding: "6px 10px",
-                    borderRadius: "8px",
-                    border: "1px solid var(--card-border)",
-                    background: "var(--card-bg)",
-                    color: "var(--text-main)",
-                    fontSize: "0.85rem",
-                    width: "100%",
-                    outline: "none",
-                  }}
                 />
               </div>
             )}
 
-            <div
-              style={{
-                display: "flex",
-                gap: "10px",
-                justifyContent: "flex-end",
-                marginTop: "4px",
-              }}
-            >
+            <div className="notif-form-actions">
               <button
                 type="button"
                 onClick={() => {
@@ -251,22 +167,12 @@ export default function TodayNotificationsCard({
                   setFormError("");
                 }}
                 className="btn-secondary"
-                style={{
-                  padding: "4px 10px",
-                  fontSize: "0.75rem",
-                  borderRadius: "6px",
-                }}
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 className="btn-primary"
-                style={{
-                  padding: "4px 10px",
-                  fontSize: "0.75rem",
-                  borderRadius: "6px",
-                }}
               >
                 Save Alert
               </button>
@@ -275,144 +181,52 @@ export default function TodayNotificationsCard({
         )}
 
         {/* List of active/fired custom notifications */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "12px",
-          }}
-        >
+        <div className="notif-list">
           {customNotifications.length === 0 ? (
-            <div
-              style={{
-                fontSize: "0.8rem",
-                color: "var(--text-muted)",
-                textAlign: "center",
-                padding: "10px 0",
-              }}
-            >
+            <div className="notif-empty">
               No custom notifications set for today.
             </div>
           ) : (
             customNotifications.map((notif) => {
-              let icon = (
-                <RiTimeLine
-                  size={16}
-                  style={{ color: "var(--accent-primary)" }}
-                />
-              );
+              let icon = <RiTimeLine size={16} className="stat-icon" />;
               let text = "";
 
               if (notif.type === "time") {
-                icon = (
-                  <RiTimeLine
-                    size={16}
-                    style={{ color: "var(--accent-primary)" }}
-                  />
-                );
+                icon = <RiTimeLine size={16} className="stat-icon" />;
                 text = `Notify at ${notif.value} for reason: ${notif.title || "Clock Time Alert"}`;
               } else if (notif.type === "complete") {
-                icon = (
-                  <RiCheckLine
-                    size={16}
-                    style={{ color: "var(--success-color)" }}
-                  />
-                );
+                icon = <RiCheckLine size={16} className="stat-icon stat-icon-success" />;
                 text = `You completed your ${notif.value} time`;
               } else if (notif.type === "overtime") {
-                icon = (
-                  <RiRocketLine
-                    size={16}
-                    style={{ color: "var(--warning-color)" }}
-                  />
-                );
+                icon = <RiRocketLine size={16} className="stat-icon stat-icon-warning" />;
                 text = `You completed Overtime of ${notif.value} time`;
               } else if (notif.type === "punch_out") {
-                icon = (
-                  <RiCupLine
-                    size={16}
-                    style={{ color: "var(--accent-secondary)" }}
-                  />
-                );
+                icon = <RiCupLine size={16} className="stat-icon stat-icon-accent" />;
                 text = `Notify when punched out more than ${notif.value} mins`;
               }
 
               return (
                 <div
                   key={notif.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "10px",
-                    padding: "8px 12px",
-                    borderRadius: "8px",
-                    background: "rgba(255, 255, 255, 0.03)",
-                    border: "1px solid var(--card-border)",
-                    opacity: notif.hasFired ? 0.6 : 1,
-                  }}
+                  className={`notif-item ${notif.hasFired ? "fired" : ""}`}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      flex: 1,
-                      minWidth: 0,
-                    }}
-                  >
+                  <div className="notif-item-content">
                     {icon}
-                    <span
-                      style={{
-                        fontSize: "0.8rem",
-                        color: "var(--text-main)",
-                        textOverflow: "ellipsis",
-                        overflow: "hidden",
-                        whiteSpace: "nowrap",
-                      }}
-                      title={text}
-                    >
+                    <span className="notif-item-text" title={text}>
                       {text}
                     </span>
                     {notif.hasFired && (
-                      <span
-                        style={{
-                          fontSize: "0.65rem",
-                          padding: "2px 6px",
-                          borderRadius: "4px",
-                          background: "rgba(0,0,0,0.2)",
-                          color: "var(--text-muted)",
-                        }}
-                      >
+                      <span className="notif-badge-fired">
                         Sent
                       </span>
                     )}
                   </div>
                   <button
                     onClick={() => deleteCustomNotification(notif.id)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "var(--text-muted)",
-                      cursor: "pointer",
-                      padding: "4px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      transition: "color 0.2s",
-                    }}
+                    className="notif-delete-btn"
                     title="Delete notification"
                   >
-                    <RiDeleteBinLine
-                      size={14}
-                      style={{ transition: "color 0.2s" }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.color = "var(--danger-color)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.color = "var(--text-muted)")
-                      }
-                    />
+                    <RiDeleteBinLine size={15} />
                   </button>
                 </div>
               );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   RiShieldStarLine,
   RiNotification3Line,
@@ -11,6 +12,11 @@ import {
   RiCalendarEventLine,
   RiRefreshLine,
   RiDatabase2Line,
+  RiTimeLine,
+  RiStopCircleLine,
+  RiEyeLine,
+  RiBug2Line,
+  RiSparklingLine,
 } from "@remixicon/react";
 import CalendarClient from "@/app/calendar/_components/CalendarClient";
 
@@ -24,6 +30,13 @@ type AdminUser = {
   workHours: number;
   workMinutes: number;
   createdAt: string;
+  activeTimer?: {
+    isActive: boolean;
+    status: string;
+    startTime: number | null;
+    elapsedMs: number;
+    isRunningOver12h: boolean;
+  } | null;
 };
 
 export default function AdminClient({
@@ -98,19 +111,453 @@ export default function AdminClient({
   );
 }
 
+function formatElapsed(ms: number): string {
+  const totalMinutes = Math.floor(Math.max(0, ms) / 60000);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${h}h ${m}m`;
+}
+
+function CleanupZombiesModal({
+  users,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  users: AdminUser[];
+  onClose: () => void;
+  onConfirm: (userId?: string) => Promise<void>;
+  isLoading: boolean;
+}) {
+  const [selectedUserId, setSelectedUserId] = useState<string>("all");
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="modal-overlay confirmation-modal-overlay" onClick={onClose}>
+      <div
+        className="modal-card confirmation-modal-card animate-in"
+        style={{ maxWidth: "500px", padding: "26px" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="modal-header confirmation-modal-header"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            marginBottom: "16px",
+          }}
+        >
+          <div
+            style={{
+              width: "40px",
+              height: "40px",
+              borderRadius: "50%",
+              background: "rgba(139, 92, 246, 0.15)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#8b5cf6",
+              flexShrink: 0,
+            }}
+          >
+            <RiBug2Line size={24} />
+          </div>
+          <div style={{ textAlign: "left" }}>
+            <h2 style={{ fontSize: "1.2rem", margin: 0 }}>Cleanup Zombie Sessions</h2>
+            <p className="text-muted" style={{ fontSize: "0.85rem", margin: "2px 0 0 0" }}>
+              Fix sessions spanning multiple days
+            </p>
+          </div>
+        </div>
+
+        <div
+          className="modal-body confirmation-modal-body"
+          style={{ textAlign: "left", padding: "8px 0" }}
+        >
+          <div
+            style={{
+              padding: "12px 14px",
+              borderRadius: "8px",
+              background: "var(--card-bg-light, rgba(255,255,255,0.04))",
+              border: "1px solid var(--card-border)",
+              marginBottom: "16px",
+              fontSize: "0.88rem",
+            }}
+          >
+            <p style={{ margin: "0 0 8px 0", color: "var(--text-primary)" }}>
+              <strong>What are zombie sessions?</strong>
+            </p>
+            <p style={{ margin: "0 0 8px 0", color: "var(--text-secondary)" }}>
+              Sessions where the timer was never stopped (e.g. cron was down), causing the
+              punchOut timestamp to fall on a completely different day. These show
+              durations like <strong>259h</strong> or <strong>23h</strong>.
+            </p>
+            <p style={{ margin: 0, color: "var(--text-secondary)" }}>
+              Fix: each zombie session's <code>punchOut</code> will be capped to{" "}
+              <strong>23:59:00 IST</strong> of the day it started on.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: "16px" }}>
+            <label
+              htmlFor="cleanup-user-select"
+              style={{ display: "block", fontSize: "0.85rem", marginBottom: "6px", color: "var(--text-secondary)" }}
+            >
+              Apply to:
+            </label>
+            <select
+              id="cleanup-user-select"
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                borderRadius: "8px",
+                background: "var(--input-bg, rgba(255,255,255,0.06))",
+                border: "1px solid var(--card-border)",
+                color: "var(--text-primary)",
+                fontSize: "0.9rem",
+                cursor: "pointer",
+              }}
+            >
+              <option value="all">All Users</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name || u.email} ({u.email})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: "12px",
+            justifyContent: "flex-end",
+            marginTop: "8px",
+          }}
+        >
+          <button
+            className="btn-secondary"
+            onClick={onClose}
+            disabled={isLoading}
+            style={{ padding: "10px 20px" }}
+          >
+            Cancel
+          </button>
+          <button
+            className="btn-primary"
+            disabled={isLoading}
+            onClick={() =>
+              onConfirm(selectedUserId === "all" ? undefined : selectedUserId)
+            }
+            style={{
+              padding: "10px 20px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "linear-gradient(135deg, #8b5cf6, #6d28d9)",
+            }}
+          >
+            {isLoading ? (
+              <>
+                <span
+                  style={{
+                    width: "14px",
+                    height: "14px",
+                    border: "2px solid rgba(255,255,255,0.3)",
+                    borderTopColor: "#fff",
+                    borderRadius: "50%",
+                    animation: "spin 0.7s linear infinite",
+                    display: "inline-block",
+                  }}
+                />
+                Fixing...
+              </>
+            ) : (
+              <>
+                <RiSparklingLine size={16} />
+                Run Cleanup
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function StopTimerModal({
+  user,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  user: AdminUser;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+  isLoading: boolean;
+}) {
+  if (typeof document === "undefined") return null;
+
+  const timer = user.activeTimer;
+  const isOver12h = Boolean(timer?.isRunningOver12h);
+  const elapsedStr = timer ? formatElapsed(timer.elapsedMs) : "0h 0m";
+
+  const startDate = timer?.startTime ? new Date(timer.startTime) : new Date();
+  const startDayStr = startDate.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+  const startTimeStr = startDate.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return createPortal(
+    <div className="modal-overlay confirmation-modal-overlay" onClick={onClose}>
+      <div
+        className="modal-card confirmation-modal-card animate-in"
+        style={{ maxWidth: "460px", padding: "26px" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="modal-header confirmation-modal-header"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            marginBottom: "16px",
+          }}
+        >
+          <div
+            style={{
+              width: "40px",
+              height: "40px",
+              borderRadius: "50%",
+              background: isOver12h
+                ? "rgba(239, 68, 68, 0.15)"
+                : "rgba(245, 158, 11, 0.15)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: isOver12h ? "#ef4444" : "#f59e0b",
+              flexShrink: 0,
+            }}
+          >
+            <RiStopCircleLine size={24} />
+          </div>
+          <div style={{ textAlign: "left" }}>
+            <h2 style={{ fontSize: "1.2rem", margin: 0 }}>Stop Running Timer</h2>
+            <p className="text-muted" style={{ fontSize: "0.85rem", margin: "2px 0 0 0" }}>
+              {user.name || user.email}
+            </p>
+          </div>
+        </div>
+
+        <div
+          className="modal-body confirmation-modal-body"
+          style={{ textAlign: "left", padding: "8px 0" }}
+        >
+          <div
+            style={{
+              padding: "12px 14px",
+              borderRadius: "8px",
+              background: "var(--card-bg-light, rgba(255,255,255,0.04))",
+              border: "1px solid var(--card-border)",
+              marginBottom: "14px",
+              fontSize: "0.88rem",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "6px",
+              }}
+            >
+              <span className="text-muted">Current Duration:</span>
+              <strong
+                style={{
+                  color: isOver12h ? "#ef4444" : "var(--accent-primary)",
+                }}
+              >
+                {elapsedStr} {isOver12h ? "(>12h)" : ""}
+              </strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span className="text-muted">Timer Started:</span>
+              <span>
+                {startDayStr} at {startTimeStr}
+              </span>
+            </div>
+          </div>
+
+          {isOver12h ? (
+            <div
+              style={{
+                padding: "12px 14px",
+                borderRadius: "8px",
+                background: "rgba(239, 68, 68, 0.08)",
+                border: "1px solid rgba(239, 68, 68, 0.25)",
+                color: "var(--text-main)",
+                fontSize: "0.85rem",
+                lineHeight: 1.45,
+              }}
+            >
+              ⚠️ <strong>Running &gt; 12 Hours:</strong> This timer has been left running overnight. On stop, its last open entry will be stopped on the day it started (<strong>{startDayStr}</strong>) at <strong>23:59:00 IST</strong> so it does not spill into subsequent days.
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: "12px 14px",
+                borderRadius: "8px",
+                background: "rgba(245, 158, 11, 0.08)",
+                border: "1px solid rgba(245, 158, 11, 0.25)",
+                color: "var(--text-main)",
+                fontSize: "0.85rem",
+                lineHeight: 1.45,
+              }}
+            >
+              ⏱️ <strong>Running &lt; 12 Hours:</strong> On stop, this timer will be stopped at the <strong>current time</strong>.
+            </div>
+          )}
+        </div>
+
+        <div
+          className="modal-footer confirmation-modal-footer"
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: "10px",
+            marginTop: "20px",
+          }}
+        >
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={onClose}
+            disabled={isLoading}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className={isOver12h ? "btn-modal-danger" : "btn-primary"}
+            onClick={onConfirm}
+            disabled={isLoading}
+          >
+            {isLoading ? "Stopping..." : isOver12h ? "Stop Timer (>12h)" : "Stop Timer"}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function UserTimelogsTab({ timeFormat }: { timeFormat?: string }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [userToStop, setUserToStop] = useState<AdminUser | null>(null);
+  const [isStopping, setIsStopping] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [showCleanupModal, setShowCleanupModal] = useState(false);
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
+
+  const loadUsers = async () => {
+    try {
+      const res = await fetch("/api/admin/users");
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setUsers(data);
+      }
+    } catch (err) {
+      console.error("Failed to load users:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    fetch("/api/admin/users")
-      .then((res) => res.json())
-      .then((data) => {
-        setUsers(data);
-        setLoading(false);
-      });
+    loadUsers();
+    const interval = setInterval(loadUsers, 30000);
+    return () => clearInterval(interval);
   }, []);
+
+  const handleConfirmStop = async () => {
+    if (!userToStop) return;
+
+    setIsStopping(true);
+    setFeedback(null);
+
+    try {
+      const res = await fetch("/api/admin/timers/stop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: userToStop.id }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setFeedback({
+          type: "success",
+          text: `Timer for ${userToStop.name || userToStop.email} stopped successfully. ${data.message || ""}`,
+        });
+        setUserToStop(null);
+        await loadUsers();
+      } else {
+        setFeedback({
+          type: "error",
+          text: data.error || "Failed to stop timer.",
+        });
+      }
+    } catch (err) {
+      console.error("Stop timer request error:", err);
+      setFeedback({
+        type: "error",
+        text: "Network error occurred while trying to stop timer.",
+      });
+    } finally {
+      setIsStopping(false);
+    }
+  };
+
+  const handleCleanupZombies = async (userId?: string) => {
+    setIsCleaningUp(true);
+    setFeedback(null);
+    try {
+      const res = await fetch("/api/admin/timers/cleanup-zombies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(userId ? { userId } : {}),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setFeedback({
+          type: "success",
+          text: data.message || `Fixed ${data.fixed} zombie session(s).`,
+        });
+        setShowCleanupModal(false);
+      } else {
+        setFeedback({
+          type: "error",
+          text: data.error || "Cleanup failed.",
+        });
+      }
+    } catch {
+      setFeedback({ type: "error", text: "Network error during cleanup." });
+    } finally {
+      setIsCleaningUp(false);
+    }
+  };
 
   if (loading)
     return (
@@ -119,9 +566,25 @@ function UserTimelogsTab({ timeFormat }: { timeFormat?: string }) {
       </div>
     );
 
+  const over12hUsers = users.filter((u) => u.activeTimer?.isRunningOver12h);
+
   return (
     <div className="glass-card animate-in">
-      <h2>Select User to View Timelogs</h2>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+        <h2 style={{ margin: 0 }}>Select User to View Timelogs</h2>
+        {!selectedUser && (
+          <button
+            className="btn-secondary"
+            onClick={() => setShowCleanupModal(true)}
+            style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem", padding: "8px 14px" }}
+            title="Detect and fix sessions that span multiple days due to cron failures"
+          >
+            <RiBug2Line size={16} />
+            Cleanup Zombie Sessions
+          </button>
+        )}
+      </div>
+
       {selectedUser ? (
         <div className="admin-calendar-view" style={{ marginTop: "16px" }}>
           <button
@@ -141,48 +604,166 @@ function UserTimelogsTab({ timeFormat }: { timeFormat?: string }) {
           </div>
         </div>
       ) : (
-        <table className="session-table" style={{ marginTop: "16px" }}>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Joined</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td>
-                  {u.name || "N/A"}{" "}
-                  {u.isAdmin && (
-                    <span
-                      className="status-badge working"
-                      style={{
-                        marginLeft: "8px",
-                        padding: "2px 6px",
-                        fontSize: "0.6rem",
-                      }}
-                    >
-                      Admin
-                    </span>
-                  )}
-                </td>
-                <td>{u.email}</td>
-                <td>{new Date(u.createdAt).toLocaleDateString()}</td>
-                <td>
-                  <button
-                    className="btn-primary"
-                    style={{ padding: "6px 12px", fontSize: "0.8rem" }}
-                    onClick={() => setSelectedUser(u)}
-                  >
-                    View Logs
-                  </button>
-                </td>
+        <>
+          {feedback && (
+            <div
+              className={`dm-message dm-message-${feedback.type}`}
+              style={{
+                marginTop: "16px",
+                marginBottom: "16px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <span>{feedback.text}</span>
+              <button
+                onClick={() => setFeedback(null)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "inherit",
+                  fontWeight: "bold",
+                  marginLeft: "12px",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {over12hUsers.length > 0 && (
+            <div className="admin-alert-banner" style={{ marginTop: "16px" }}>
+              <div className="alert-content">
+                <div className="alert-icon">
+                  <RiErrorWarningLine size={24} />
+                </div>
+                <div>
+                  <h4>
+                    {over12hUsers.length} Running Timer
+                    {over12hUsers.length > 1 ? "s" : ""} Exceeding 12 Hours
+                  </h4>
+                  <p>
+                    These timers have been running for more than 12 hours. Stopping will close their last open entry on the calendar day they started at 23:59:00 IST.
+                  </p>
+                </div>
+              </div>
+              <div className="alert-badge">
+                {over12hUsers.length} Over 12h
+              </div>
+            </div>
+          )}
+
+          <table className="session-table" style={{ marginTop: "16px" }}>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Timer Status</th>
+                <th>Joined</th>
+                <th>Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {users.map((u) => {
+                const timer = u.activeTimer;
+                return (
+                  <tr key={u.id}>
+                    <td>
+                      {u.name || "N/A"}{" "}
+                      {u.isAdmin && (
+                        <span
+                          className="status-badge working"
+                          style={{
+                            marginLeft: "8px",
+                            padding: "2px 6px",
+                            fontSize: "0.6rem",
+                          }}
+                        >
+                          Admin
+                        </span>
+                      )}
+                    </td>
+                    <td>{u.email}</td>
+                    <td>
+                      {timer?.isActive ? (
+                        timer.isRunningOver12h ? (
+                          <span
+                            className="status-badge running-over-12h"
+                            title={`Running since ${timer.startTime ? new Date(timer.startTime).toLocaleString() : "unknown"}`}
+                          >
+                            <RiTimeLine size={13} style={{ marginRight: "4px" }} />
+                            Running: {formatElapsed(timer.elapsedMs)} (&gt;12h)
+                          </span>
+                        ) : (
+                          <span className="status-badge working">
+                            <RiTimeLine size={13} style={{ marginRight: "4px" }} />
+                            Running: {formatElapsed(timer.elapsedMs)}
+                          </span>
+                        )
+                      ) : (
+                        <span className="status-badge idle">Idle</span>
+                      )}
+                    </td>
+                    <td>{new Date(u.createdAt).toLocaleDateString()}</td>
+                    <td>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <button
+                          className="btn-icon-action btn-icon-view"
+                          onClick={() => setSelectedUser(u)}
+                          title="View Logs"
+                          aria-label="View Logs"
+                        >
+                          <RiEyeLine size={18} />
+                        </button>
+                        {timer?.isActive && (
+                          timer.isRunningOver12h ? (
+                            <button
+                              className="btn-icon-action btn-icon-danger"
+                              onClick={() => setUserToStop(u)}
+                              title={`Stop Timer (Running ${formatElapsed(timer.elapsedMs)}: closes on start day at 23:59 IST)`}
+                              aria-label="Stop Timer (>12h)"
+                            >
+                              <RiStopCircleLine size={18} />
+                            </button>
+                          ) : (
+                            <button
+                              className="btn-icon-action btn-icon-warning"
+                              onClick={() => setUserToStop(u)}
+                              title={`Stop Timer (Running ${formatElapsed(timer.elapsedMs)}: closes at current time)`}
+                              aria-label="Stop Timer"
+                            >
+                              <RiStopCircleLine size={18} />
+                            </button>
+                          )
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {userToStop && (
+            <StopTimerModal
+              user={userToStop}
+              onClose={() => setUserToStop(null)}
+              onConfirm={handleConfirmStop}
+              isLoading={isStopping}
+            />
+          )}
+
+          {showCleanupModal && (
+            <CleanupZombiesModal
+              users={users}
+              onClose={() => setShowCleanupModal(false)}
+              onConfirm={handleCleanupZombies}
+              isLoading={isCleaningUp}
+            />
+          )}
+        </>
       )}
     </div>
   );
@@ -945,6 +1526,182 @@ interface SyncResponseData {
   };
 }
 
+function SyncConfirmModal({
+  direction,
+  syncMode,
+  startDate,
+  endDate,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  direction: "prod-to-dev" | "dev-to-prod";
+  syncMode: SyncMode;
+  startDate: string;
+  endDate: string;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+  isLoading: boolean;
+}) {
+  if (typeof document === "undefined") return null;
+
+  const dirLabel =
+    direction === "prod-to-dev"
+      ? "Production → Development"
+      : "Development → Production";
+
+  const modeLabel =
+    syncMode === "24h"
+      ? "Last 24 Hours Data"
+      : syncMode === "range"
+      ? `Custom Range (${startDate} to ${endDate})`
+      : "FULL Database (All records)";
+
+  const isFull = syncMode === "full";
+
+  return createPortal(
+    <div className="modal-overlay confirmation-modal-overlay" onClick={onClose}>
+      <div
+        className="modal-card confirmation-modal-card animate-in"
+        style={{ maxWidth: "480px", padding: "26px" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="modal-header confirmation-modal-header"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            marginBottom: "16px",
+          }}
+        >
+          <div
+            style={{
+              width: "40px",
+              height: "40px",
+              borderRadius: "50%",
+              background: isFull
+                ? "rgba(239, 68, 68, 0.15)"
+                : "rgba(59, 130, 246, 0.15)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: isFull ? "#ef4444" : "var(--accent-primary)",
+              flexShrink: 0,
+            }}
+          >
+            <RiDatabase2Line size={24} />
+          </div>
+          <div style={{ textAlign: "left" }}>
+            <h2 style={{ fontSize: "1.2rem", margin: 0 }}>
+              Database Synchronization
+            </h2>
+            <p
+              className="text-muted"
+              style={{ fontSize: "0.85rem", margin: "2px 0 0 0" }}
+            >
+              Confirm data migration
+            </p>
+          </div>
+        </div>
+
+        <div
+          className="modal-body confirmation-modal-body"
+          style={{ textAlign: "left", padding: "8px 0" }}
+        >
+          <p style={{ margin: "0 0 14px 0", fontSize: "0.95rem" }}>
+            Are you sure you want to trigger database synchronization?
+          </p>
+
+          <div
+            style={{
+              padding: "12px 14px",
+              borderRadius: "8px",
+              background: "var(--card-bg-light, rgba(255,255,255,0.04))",
+              border: "1px solid var(--card-border)",
+              marginBottom: "14px",
+              fontSize: "0.88rem",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "8px",
+              }}
+            >
+              <span className="text-muted">Direction:</span>
+              <strong style={{ color: "var(--text-main)" }}>{dirLabel}</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span className="text-muted">Scope:</span>
+              <span style={{ fontWeight: 600 }}>{modeLabel}</span>
+            </div>
+          </div>
+
+          {isFull ? (
+            <div
+              style={{
+                padding: "12px 14px",
+                borderRadius: "8px",
+                background: "rgba(239, 68, 68, 0.08)",
+                border: "1px solid rgba(239, 68, 68, 0.25)",
+                color: "var(--text-main)",
+                fontSize: "0.85rem",
+                lineHeight: 1.45,
+              }}
+            >
+              ⚠️ <strong>WARNING:</strong> Full sync will overwrite target database tables!
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: "12px 14px",
+                borderRadius: "8px",
+                background: "rgba(59, 130, 246, 0.08)",
+                border: "1px solid rgba(59, 130, 246, 0.25)",
+                color: "var(--text-main)",
+                fontSize: "0.85rem",
+                lineHeight: 1.45,
+              }}
+            >
+              ℹ️ This will migrate matching records into the target database.
+            </div>
+          )}
+        </div>
+
+        <div
+          className="modal-footer confirmation-modal-footer"
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: "10px",
+            marginTop: "20px",
+          }}
+        >
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={onClose}
+            disabled={isLoading}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className={isFull ? "btn-modal-danger" : "btn-primary"}
+            onClick={onConfirm}
+            disabled={isLoading}
+          >
+            {isLoading ? "Syncing..." : isFull ? "Confirm Full Sync" : "Confirm Sync"}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function DatabaseSyncTab() {
   const [direction, setDirection] = useState<"prod-to-dev" | "dev-to-prod">("prod-to-dev");
   const [syncMode, setSyncMode] = useState<SyncMode>("24h");
@@ -956,42 +1713,23 @@ function DatabaseSyncTab() {
   const [endDate, setEndDate] = useState(todayStr);
 
   const [loading, setLoading] = useState(false);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [status, setStatus] = useState<{
     type: "success" | "error" | "";
     text: string;
     details?: SyncResponseData;
   }>({ type: "", text: "" });
 
-  const handleSyncTrigger = async () => {
+  const handleSyncTrigger = () => {
     if (syncMode === "range" && startDate && endDate && startDate > endDate) {
-      alert("Start date cannot be after end date.");
+      setStatus({ type: "error", text: "Start date cannot be after end date." });
       return;
     }
+    setIsConfirmModalOpen(true);
+  };
 
-    const dirLabel =
-      direction === "prod-to-dev"
-        ? "Production → Development"
-        : "Development → Production";
-    const modeLabel =
-      syncMode === "24h"
-        ? "Last 24 Hours data"
-        : syncMode === "range"
-        ? `Custom Range (${startDate} to ${endDate})`
-        : "FULL Database (All records)";
-
-    if (
-      !confirm(
-        `Are you sure you want to trigger database synchronization?\n\n` +
-          `Direction: ${dirLabel}\n` +
-          `Scope: ${modeLabel}\n\n` +
-          (syncMode === "full"
-            ? "⚠️ WARNING: Full sync will overwrite target database tables!"
-            : "This will migrate matching records into the target database.")
-      )
-    ) {
-      return;
-    }
-
+  const executeSync = async () => {
+    setIsConfirmModalOpen(false);
     setLoading(true);
     setStatus({ type: "", text: "" });
 
@@ -1261,6 +1999,18 @@ function DatabaseSyncTab() {
           )}
         </button>
       </div>
+
+      {isConfirmModalOpen && (
+        <SyncConfirmModal
+          direction={direction}
+          syncMode={syncMode}
+          startDate={startDate}
+          endDate={endDate}
+          onClose={() => setIsConfirmModalOpen(false)}
+          onConfirm={executeSync}
+          isLoading={loading}
+        />
+      )}
     </div>
   );
 }

@@ -18,7 +18,8 @@ input[type="email"],
 input[type="password"],
 input[type="number"],
 input[type="time"],
-input[type="date"] {
+input[type="date"],
+select {
   background: var(--input-bg);
   border: 1px solid var(--input-border);
   color: var(--text-main);
@@ -29,6 +30,58 @@ input[type="date"] {
   outline: none;
   transition: all var(--transition);
   width: 100%;
+}
+
+/* WebKit time & date picker indicator styling (clock & calendar icons) */
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity var(--transition), filter var(--transition);
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+[data-theme="dark"] input::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: brightness(0) invert(1) !important;
+  opacity: 0.92 !important;
+
+  &:hover {
+    opacity: 1 !important;
+    filter: brightness(0) invert(1) !important;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) input[type="time"]::-webkit-calendar-picker-indicator,
+  :root:not([data-theme="light"]) input[type="date"]::-webkit-calendar-picker-indicator,
+  :root:not([data-theme="light"]) input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: brightness(0) invert(1) !important;
+    opacity: 0.85 !important;
+  }
+}
+
+[data-theme="dark"] input[type="time"],
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="datetime-local"] {
+  color-scheme: dark;
+}
+
+select {
+  cursor: pointer;
+  background-color: var(--select-bg);
+  color: var(--text-main);
+
+  option {
+    background-color: var(--select-bg);
+    color: var(--text-main);
+  }
 }
 
 textarea {
@@ -45,7 +98,8 @@ textarea {
 }
 
 input:focus,
-textarea:focus {
+textarea:focus,
+select:focus {
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
