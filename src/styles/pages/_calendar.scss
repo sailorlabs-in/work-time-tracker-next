@@ -1115,7 +1115,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  background: var(--danger);
   color: #ffffff;
   border: none;
   padding: 12px 24px;
@@ -1125,12 +1125,12 @@
   font-family: var(--font-heading);
   cursor: pointer;
   transition: all var(--transition);
-  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.35);
+  box-shadow: 0 4px 12px rgba(229, 77, 77, 0.25);
 
   &:hover:not(:disabled) {
-    background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+    background: #c83b3b;
     transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.45);
+    box-shadow: 0 4px 12px rgba(229, 77, 77, 0.3);
   }
 
   &:active:not(:disabled) {

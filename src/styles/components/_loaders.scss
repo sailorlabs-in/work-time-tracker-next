@@ -18,8 +18,8 @@
 
 .nav-progress-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent-primary) 0%, #ff8a48 50%, #c084fc 100%);
-  box-shadow: 0 0 14px rgba(232, 133, 74, 0.75), 0 0 6px rgba(192, 132, 252, 0.5);
+  background: linear-gradient(90deg, var(--accent-primary) 0%, #d4723a 50%, #c2410c 100%);
+  box-shadow: 0 0 14px rgba(232, 133, 74, 0.8), 0 0 8px rgba(194, 65, 12, 0.65);
   transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
 
   &.done {
