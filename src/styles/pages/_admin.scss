@@ -116,6 +116,191 @@
         background: var(--accent-subtle);
         color: var(--accent-primary);
     }
+
+    &.running-over-12h {
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.35);
+        animation: pulse-over12h 2s infinite ease-in-out;
+    }
+
+    &.idle {
+        background: var(--slate-bg);
+        color: var(--text-muted);
+    }
+}
+
+@keyframes pulse-over12h {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0);
+    }
+}
+
+.btn-danger-stop {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 6px;
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+
+    &:hover:not(:disabled) {
+        background: #ef4444;
+        color: #fff;
+        border-color: #ef4444;
+        box-shadow: 0 2px 8px rgba(239, 68, 68, 0.35);
+    }
+
+    &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+}
+
+.btn-stop-normal {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 6px;
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+
+    &:hover:not(:disabled) {
+        background: #f59e0b;
+        color: #fff;
+        border-color: #f59e0b;
+        box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);
+    }
+
+    &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+}
+
+.btn-icon-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all var(--transition);
+    background: transparent;
+    flex-shrink: 0;
+
+    &.btn-icon-view {
+        background: var(--accent-subtle);
+        color: var(--accent-primary);
+        border-color: rgba(99, 102, 241, 0.25);
+
+        &:hover {
+            background: var(--accent-primary);
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+            transform: translateY(-1px);
+        }
+    }
+
+    &.btn-icon-danger {
+        background: rgba(239, 68, 68, 0.12);
+        color: #ef4444;
+        border-color: rgba(239, 68, 68, 0.3);
+
+        &:hover {
+            background: #ef4444;
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.35);
+            transform: translateY(-1px);
+        }
+    }
+
+    &.btn-icon-warning {
+        background: rgba(245, 158, 11, 0.12);
+        color: #f59e0b;
+        border-color: rgba(245, 158, 11, 0.3);
+
+        &:hover {
+            background: #f59e0b;
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);
+            transform: translateY(-1px);
+        }
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none !important;
+    }
+}
+
+.admin-alert-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 20px;
+    border-radius: 12px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: var(--text-main);
+
+    .alert-content {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+
+        .alert-icon {
+            color: #ef4444;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        h4 {
+            margin: 0 0 4px 0;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #ef4444;
+        }
+
+        p {
+            margin: 0;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+    }
+
+    .alert-badge {
+        padding: 4px 10px;
+        border-radius: 20px;
+        background: #ef4444;
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 700;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
 }
 
 .btn-delete-sm {
@@ -151,6 +336,12 @@
     .tab-btn {
         padding: 8px 12px;
         font-size: 0.85rem;
+    }
+
+    .admin-alert-banner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
     }
 
     .manage-holidays-form {

@@ -46,7 +46,8 @@ export default function Navbar() {
   };
 
   const initials = getUserInitials(session.user?.name, session.user?.email);
-  const displayName = session.user?.name || session.user?.email?.split("@")[0] || "My Account";
+  const displayName =
+    session.user?.name || session.user?.email?.split("@")[0] || "My Account";
 
   return (
     <nav className={`navbar ${isMenuOpen ? "navbar-menu-open" : ""}`}>
@@ -60,7 +61,9 @@ export default function Navbar() {
           type="button"
           className="navbar-menu-btn"
           onClick={() => setIsMenuOpen((open) => !open)}
-          aria-label={isMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+          aria-label={
+            isMenuOpen ? "Close navigation menu" : "Open navigation menu"
+          }
           aria-expanded={isMenuOpen}
         >
           {isMenuOpen ? <RiCloseLine size={22} /> : <RiMenuLine size={22} />}
@@ -105,9 +108,6 @@ export default function Navbar() {
                 onClick={closeMenu}
                 title="Account Settings"
               >
-                <div className="user-avatar">
-                  <span>{initials}</span>
-                </div>
                 <span className="user-name">{displayName}</span>
                 <RiSettings4Line size={16} className="user-settings-icon" />
               </Link>

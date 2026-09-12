@@ -122,7 +122,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   text-decoration: none;
   color: var(--text-muted);
   font-size: 0.9rem;
@@ -144,7 +144,6 @@
   background: var(--accent-subtle);
   border-color: var(--accent-subtle-border);
   font-weight: 600;
-  box-shadow: 0 2px 8px var(--accent-glow);
 }
 
 .navbar-right {
@@ -164,8 +163,8 @@
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  padding: 4px 12px 4px 5px;
-  border-radius: var(--radius-full);
+  padding: 4px 8px 4px 8px;
+  border-radius: var(--radius-sm);
   background: var(--input-bg);
   border: 1px solid var(--card-border);
   text-decoration: none;
@@ -191,23 +190,6 @@
   border-color: var(--accent-primary);
 }
 
-.user-avatar {
-  position: relative;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover));
-  color: #ffffff;
-  font-size: 0.72rem;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  letter-spacing: 0.5px;
-  flex-shrink: 0;
-  box-shadow: 0 2px 6px var(--accent-glow);
-}
-
 .user-name {
   color: var(--text-main);
   font-size: 0.85rem;
@@ -231,8 +213,8 @@
   background: var(--danger-bg);
   border: 1px solid var(--danger-border);
   color: var(--danger);
-  padding: 6px 14px;
-  border-radius: var(--radius-full);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
@@ -241,10 +223,9 @@
 }
 
 .btn-logout:hover {
-  background: rgba(229, 77, 77, 0.15);
+  background: rgba(229, 77, 77, 0.7);
   border-color: rgba(229, 77, 77, 0.3);
-  color: var(--danger);
-  transform: translateY(-1px);
+  color: rgb(255, 255, 255, 0.8);
 }
 
 /* ═══════════════════════════════════════════════
