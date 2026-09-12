@@ -32,6 +32,47 @@ select {
   width: 100%;
 }
 
+/* WebKit time & date picker indicator styling (clock & calendar icons) */
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity var(--transition), filter var(--transition);
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+[data-theme="dark"] input::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: brightness(0) invert(1) !important;
+  opacity: 0.92 !important;
+
+  &:hover {
+    opacity: 1 !important;
+    filter: brightness(0) invert(1) !important;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) input[type="time"]::-webkit-calendar-picker-indicator,
+  :root:not([data-theme="light"]) input[type="date"]::-webkit-calendar-picker-indicator,
+  :root:not([data-theme="light"]) input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: brightness(0) invert(1) !important;
+    opacity: 0.85 !important;
+  }
+}
+
+[data-theme="dark"] input[type="time"],
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="datetime-local"] {
+  color-scheme: dark;
+}
+
 select {
   cursor: pointer;
   background-color: var(--select-bg);

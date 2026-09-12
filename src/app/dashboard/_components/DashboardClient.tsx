@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import Link from "next/link";
 import {
   useWorkTimer,
@@ -96,6 +96,7 @@ interface OtMilestone {
   thresholdMs: number;
   clockTime: string | null; // null if already passed
   isPassed: boolean;
+  earlyGoingTime?: string | null;
 }
 
 function computeOtMilestones(
@@ -104,6 +105,8 @@ function computeOtMilestones(
   currentTime: number,
   isWorking: boolean,
   timeFormat: "12h" | "24h",
+  plannedBreakMinutes: number = 0,
+  isBreak: boolean = false,
 ): OtMilestone[] {
   const tiers = [
     { label: "Work Complete", otMinutes: 0, thresholdMs: targetWorkMs },
@@ -134,6 +137,8 @@ function computeOtMilestones(
     },
   ];
 
+  const plannedBreakMs = Math.max(0, plannedBreakMinutes) * 60000;
+
   return tiers.map((tier) => {
     const isPassed = totalWorkMs >= tier.thresholdMs;
     let clockTime: string | null = null;
@@ -144,33 +149,103 @@ function computeOtMilestones(
     } else if (isWorking) {
       // Only calculate future time when currently working
       const msRemaining = tier.thresholdMs - totalWorkMs;
-      const futureMs = currentTime + msRemaining;
+      const futureMs = currentTime + msRemaining + plannedBreakMs;
       clockTime = new Date(futureMs).toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
         hour12: timeFormat === "12h",
       });
+    } else if (isBreak) {
+      // On break - calculate projected time assuming resuming now
+      const msRemaining = tier.thresholdMs - totalWorkMs;
+      const futureMs = currentTime + msRemaining + plannedBreakMs;
+      const formatted = new Date(futureMs).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: timeFormat === "12h",
+      });
+      clockTime = `~${formatted}`;
     } else {
-      // On break — can't predict
-      clockTime = "On Break";
+      // Day not started
+      clockTime = "--:--";
     }
 
-    return { ...tier, clockTime, isPassed };
+    let earlyGoingTime: string | null = null;
+    if (tier.otMinutes === 0 && !isPassed && (isWorking || isBreak)) {
+      const msRemaining = tier.thresholdMs - totalWorkMs;
+      const futureMs = currentTime + msRemaining + plannedBreakMs;
+      const earlyMs = futureMs - 30 * 60000;
+      earlyGoingTime = new Date(earlyMs).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: timeFormat === "12h",
+      });
+    }
+
+    return { ...tier, clockTime, isPassed, earlyGoingTime };
   });
 }
 
 // ─── Modal: OT Milestones ────────────────────────────────────
 interface OtMilestonesModalProps {
   onClose: () => void;
-  milestones: OtMilestone[];
+  totalWorkMs: number;
+  targetWorkMs: number;
+  currentTime: number;
+  isWorking: boolean;
+  isBreak: boolean;
+  timeFormat: "12h" | "24h";
   currentOtMinutes: number;
 }
 
 function OtMilestonesModal({
   onClose,
-  milestones,
+  totalWorkMs,
+  targetWorkMs,
+  currentTime,
+  isWorking,
+  isBreak,
+  timeFormat,
   currentOtMinutes,
 }: OtMilestonesModalProps) {
+  const [breakHours, setBreakHours] = useState<number>(0);
+  const [breakMinutes, setBreakMinutes] = useState<number>(0);
+  const [showCustom, setShowCustom] = useState(false);
+  const plannedBreakMinutes = breakHours * 60 + breakMinutes;
+
+  const milestones = useMemo(
+    () =>
+      computeOtMilestones(
+        totalWorkMs,
+        targetWorkMs,
+        currentTime,
+        isWorking,
+        timeFormat,
+        plannedBreakMinutes,
+        isBreak,
+      ),
+    [totalWorkMs, targetWorkMs, currentTime, isWorking, timeFormat, plannedBreakMinutes, isBreak]
+  );
+
+  const standardPresets = [
+    { label: "0m", h: 0, m: 0 },
+    { label: "15m", h: 0, m: 15 },
+    { label: "30m", h: 0, m: 30 },
+    { label: "45m", h: 0, m: 45 },
+    { label: "1h", h: 1, m: 0 },
+  ];
+
+  const matchedPreset = standardPresets.find(
+    (opt) => opt.h === breakHours && opt.m === breakMinutes
+  );
+  const isCustomActive = showCustom || !matchedPreset;
+
+  const formatBreakLabel = () => {
+    if (breakHours > 0 && breakMinutes > 0) return `${breakHours}h ${breakMinutes}m`;
+    if (breakHours > 0) return `${breakHours}h`;
+    return `${breakMinutes}m`;
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
@@ -189,41 +264,195 @@ function OtMilestonesModal({
           </p>
         </div>
 
-        <div className="ot-milestones-list">
-          {milestones.map((m, i) => (
-            <div
-              key={i}
-              className={`ot-milestone-row${
-                m.isPassed ? " ot-milestone-passed" : ""
-              }${i === 0 ? " ot-milestone-work-complete" : ""}`}
-            >
-              <div className="ot-milestone-indicator">
-                <span
-                  className={`ot-milestone-dot${m.isPassed ? " passed" : ""}`}
-                />
-                {i < milestones.length - 1 && (
-                  <span className="ot-milestone-line" />
-                )}
-              </div>
-              <div className="ot-milestone-info">
-                <span className="ot-milestone-label">{m.label}</span>
-                <span className="ot-milestone-sublabel">
-                  {i === 0
-                    ? formatShortTime(m.thresholdMs) + " worked"
-                    : `+${formatShortTime(m.thresholdMs - milestones[0].thresholdMs)} after completion`}
+        {/* Break Simulation Card — Hours & Minutes format */}
+        <div className="ot-break-sim-card">
+          <div className="ot-break-sim-header">
+            <div className="ot-break-sim-title">
+              <RiCupLine size={15} />
+              <span>Simulate Break</span>
+            </div>
+            {plannedBreakMinutes > 0 && (
+              <div className="ot-break-sim-badge-wrap">
+                <span className="ot-break-sim-badge">
+                  +{formatBreakLabel()} added
                 </span>
+                <button
+                  type="button"
+                  className="ot-break-reset-btn"
+                  onClick={() => {
+                    setBreakHours(0);
+                    setBreakMinutes(0);
+                    setShowCustom(false);
+                  }}
+                  title="Reset to 0"
+                >
+                  Reset
+                </button>
               </div>
-              <div className="ot-milestone-time mono">
-                {m.isPassed ? (
-                  <span className="ot-milestone-check">
-                    <RiCheckLine size={16} />
-                  </span>
-                ) : (
-                  <span>{m.clockTime}</span>
-                )}
+            )}
+          </div>
+
+          <div className="ot-break-segmented">
+            {standardPresets.map((opt) => {
+              const isSelected = !showCustom && breakHours === opt.h && breakMinutes === opt.m;
+              return (
+                <button
+                  key={opt.label}
+                  type="button"
+                  className={`ot-break-seg-btn${isSelected ? " active" : ""}`}
+                  onClick={() => {
+                    setBreakHours(opt.h);
+                    setBreakMinutes(opt.m);
+                    setShowCustom(false);
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              className={`ot-break-seg-btn${isCustomActive ? " active" : ""}`}
+              onClick={() => {
+                if (showCustom) {
+                  if (!matchedPreset) {
+                    setBreakHours(0);
+                    setBreakMinutes(0);
+                  }
+                  setShowCustom(false);
+                } else {
+                  setShowCustom(true);
+                }
+              }}
+            >
+              Custom
+            </button>
+          </div>
+
+          {isCustomActive && (
+            <div className="ot-break-custom-row">
+              <span className="ot-break-custom-label">Custom break:</span>
+              <div className="ot-break-combined-wrap">
+                <div className="ot-break-labels-row">
+                  <span className="ot-break-unit-label">hr</span>
+                  <span className="ot-break-unit-label">min</span>
+                </div>
+                <div className="ot-break-combined-stepper">
+                  <button
+                    type="button"
+                    className="ot-stepper-btn"
+                    disabled={breakHours <= 0 && breakMinutes <= 0}
+                    onClick={() => {
+                      if (breakMinutes >= 5) {
+                        setBreakMinutes((m) => m - 5);
+                      } else if (breakHours > 0) {
+                        setBreakHours((h) => h - 1);
+                        setBreakMinutes(55);
+                      } else {
+                        setBreakMinutes(0);
+                      }
+                    }}
+                    title="Decrease 5 minutes"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    min="0"
+                    max="12"
+                    value={breakHours}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      setBreakHours(isNaN(val) ? 0 : Math.max(0, Math.min(val, 12)));
+                    }}
+                    className="ot-stepper-input mono"
+                    aria-label="Break hours"
+                  />
+                  <span className="ot-stepper-sep">:</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="59"
+                    step="5"
+                    value={breakMinutes}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      setBreakMinutes(isNaN(val) ? 0 : Math.max(0, Math.min(val, 59)));
+                    }}
+                    className="ot-stepper-input mono"
+                    aria-label="Break minutes"
+                  />
+                  <button
+                    type="button"
+                    className="ot-stepper-btn"
+                    onClick={() => {
+                      if (breakMinutes + 5 >= 60) {
+                        setBreakHours((h) => Math.min(12, h + 1));
+                        setBreakMinutes((m) => (m + 5) % 60);
+                      } else {
+                        setBreakMinutes((m) => m + 5);
+                      }
+                    }}
+                    title="Increase 5 minutes"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             </div>
-          ))}
+          )}
+        </div>
+
+        <div className="ot-milestones-list">
+          {milestones.map((m, i) => {
+            const isWorkCompleteRow = i === 0;
+            const rowTooltip = isWorkCompleteRow && m.earlyGoingTime
+              ? `Early going on: ${m.earlyGoingTime}`
+              : undefined;
+
+            return (
+              <div
+                key={i}
+                className={`ot-milestone-row${
+                  m.isPassed ? " ot-milestone-passed" : ""
+                }${isWorkCompleteRow ? " ot-milestone-work-complete" : ""}`}
+                title={rowTooltip}
+              >
+                <div className="ot-milestone-indicator">
+                  <span
+                    className={`ot-milestone-dot${m.isPassed ? " passed" : ""}`}
+                  />
+                  {i < milestones.length - 1 && (
+                    <span className="ot-milestone-line" />
+                  )}
+                </div>
+                <div className="ot-milestone-info" title={rowTooltip}>
+                  <span className="ot-milestone-label" title={rowTooltip}>{m.label}</span>
+                  <span className="ot-milestone-sublabel">
+                    {i === 0
+                      ? formatShortTime(m.thresholdMs) + " worked"
+                      : `+${formatShortTime(m.thresholdMs - milestones[0].thresholdMs)} after completion`}
+                  </span>
+                </div>
+                <div className="ot-milestone-time mono" title={rowTooltip}>
+                  {m.isPassed ? (
+                    <span className="ot-milestone-check">
+                      <RiCheckLine size={16} />
+                    </span>
+                  ) : (
+                    <div className="ot-milestone-time-val">
+                      <span>{m.clockTime}</span>
+                      {plannedBreakMinutes > 0 && (
+                        <span className="ot-milestone-adjusted-tag">+{formatBreakLabel()}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <div className="modal-footer" style={{ paddingTop: "16px" }}>
@@ -690,10 +919,7 @@ export default function DashboardClient({
   const [earlyLeaveTimeStr, setEarlyLeaveTimeStr] = useState<string>("");
   const [startTimeStr, setStartTimeStr] = useState<string>("--:--");
   const [lastSyncedStr, setLastSyncedStr] = useState<string>("");
-  const [nextOtTimeStr, setNextOtTimeStr] = useState<string>("");
-  const [showSecretOt, setShowSecretOt] = useState(false);
   const [showOtMilestonesModal, setShowOtMilestonesModal] = useState(false);
-  const secretTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [showBreakModal, setShowBreakModal] = useState(false);
   const [showLatePunchInModal, setShowLatePunchInModal] = useState(false);
@@ -794,28 +1020,7 @@ export default function DashboardClient({
         );
       }
 
-      const standardWorkMs = state.targetWorkMs || 8 * 3600000;
-      const currentOtMin = getOtMinutes(totalWork, standardWorkMs);
-      const nextTierMin = currentOtMin === 0 ? 30 : currentOtMin + 30;
-      const nextOtThresholdMs =
-        nextTierMin === 30
-          ? standardWorkMs + 30 * 60000
-          : standardWorkMs + (nextTierMin - 15) * 60000;
 
-      // Only calculate next OT time when actively working
-      if (state.status === "working") {
-        const msUntilNextOt = nextOtThresholdMs - totalWork;
-        const nextOtClockTime = now + msUntilNextOt;
-        setNextOtTimeStr(
-          new Date(nextOtClockTime).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: timeFormat === "12h",
-          }),
-        );
-      } else {
-        setNextOtTimeStr("On Break");
-      }
 
       if (state.startTime) {
         setStartTimeStr(
@@ -892,11 +1097,7 @@ export default function DashboardClient({
     return null;
   };
 
-  const triggerSecretOt = () => {
-    if (secretTimerRef.current) clearTimeout(secretTimerRef.current);
-    setShowSecretOt(true);
-    secretTimerRef.current = setTimeout(() => setShowSecretOt(false), 7000);
-  };
+
 
   return (
     <>
@@ -1006,8 +1207,6 @@ export default function DashboardClient({
                 <div style={{ display: "flex", alignItems: "center" }}>
                   <span
                     className={`status-badge ${state.status === "working" ? "working" : "on-break"}`}
-                    onClick={triggerSecretOt}
-                    style={{ cursor: "pointer" }}
                   >
                     {state.status === "working" ? (
                       <>
@@ -1036,32 +1235,17 @@ export default function DashboardClient({
                 </span>
               </div>
 
-              {(!isOvertime || showSecretOt) && (
+              {!isOvertime && (
                 <div className="leave-time-display">
-                  {!showSecretOt ? (
-                    <>
-                      <span className="leave-time-label">
-                        You can leave at{" "}
-                      </span>
-                      <span
-                        className="leave-time-value mono"
-                        title={`Early leave: ${earlyLeaveTimeStr}`}
-                      >
-                        {leaveTimeStr}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="leave-time-label">
-                        {getOtMinutes(totalWork, state.targetWorkMs) === 0
-                          ? `${formatOtMinutes(30)} starts at`
-                          : `${formatOtMinutes(getOtMinutes(totalWork, state.targetWorkMs) + 30)} at`}
-                      </span>
-                      <span className="leave-time-value mono">
-                        {nextOtTimeStr}
-                      </span>
-                    </>
-                  )}
+                  <span className="leave-time-label">
+                    You can leave at{" "}
+                  </span>
+                  <span
+                    className="leave-time-value mono"
+                    title={`Early leave: ${earlyLeaveTimeStr}`}
+                  >
+                    {leaveTimeStr}
+                  </span>
                 </div>
               )}
 
@@ -1209,13 +1393,12 @@ export default function DashboardClient({
       {showOtMilestonesModal && (
         <OtMilestonesModal
           onClose={() => setShowOtMilestonesModal(false)}
-          milestones={computeOtMilestones(
-            totalWork,
-            state.targetWorkMs,
-            currentTime,
-            state.status === "working",
-            timeFormat,
-          )}
+          totalWorkMs={totalWork}
+          targetWorkMs={state.targetWorkMs}
+          currentTime={currentTime}
+          isWorking={state.status === "working"}
+          isBreak={state.status === "break"}
+          timeFormat={timeFormat}
           currentOtMinutes={getOtMinutes(totalWork, state.targetWorkMs)}
         />
       )}

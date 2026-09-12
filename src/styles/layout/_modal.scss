@@ -20,11 +20,35 @@
   @include glass-card;
   width: 100%;
   max-width: 440px;
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow-y: auto;
   border-radius: var(--radius-xl);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   box-shadow: var(--shadow-card), var(--shadow-glow);
   animation: fadeInUp 0.35s ease-out;
+
+  /* Custom sleek scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: var(--card-border) transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--card-border);
+    border-radius: var(--radius-full);
+
+    &:hover {
+      background: var(--text-dim);
+    }
+  }
 }
 
 .modal-header {

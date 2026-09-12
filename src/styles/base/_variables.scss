@@ -9,6 +9,7 @@
 /* ─── LIGHT MODE (Default) ─── */
 :root,
 [data-theme="light"] {
+  color-scheme: light;
   --bg-color: #f5f3f0;
   --bg-secondary: #eae7e2;
   --card-bg: rgba(255, 255, 255, 0.85);
@@ -47,6 +48,7 @@
 
 /* ─── DARK MODE ─── */
 [data-theme="dark"] {
+  color-scheme: dark;
   --bg-color: #111318;
   --bg-secondary: #181b22;
   --card-bg: rgba(26, 29, 38, 0.85);

@@ -1177,7 +1177,288 @@
    ═══════════════════════════════════════════════ */
 
 .ot-milestones-modal {
-  max-width: 420px;
+  max-width: 440px;
+  max-height: 88vh;
+  max-height: 88dvh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+
+  /* Custom sleek scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: var(--card-border) transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--card-border);
+    border-radius: var(--radius-full);
+
+    &:hover {
+      background: var(--text-dim);
+    }
+  }
+
+  @media (max-height: 720px) {
+    max-height: 92vh;
+    max-height: 92dvh;
+    padding: 20px;
+
+    .modal-header-centered {
+      margin-bottom: 16px;
+      gap: 4px;
+    }
+
+    .ot-break-sim-card {
+      margin-bottom: 12px;
+      padding: 10px 12px;
+    }
+  }
+}
+
+/* ── Break Simulation Card in OT Milestones Modal ── */
+.ot-break-sim-card {
+  background: var(--slate-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ot-break-sim-header {
+  min-height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ot-break-sim-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-main);
+
+  svg {
+    color: var(--accent-primary);
+  }
+}
+
+.ot-break-sim-badge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ot-break-reset-btn {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  cursor: pointer;
+  transition: all var(--transition);
+
+  &:hover {
+    color: var(--danger, #e53e3e);
+    border-color: var(--danger-border, rgba(229, 62, 62, 0.4));
+    background: var(--danger-bg, rgba(229, 62, 62, 0.1));
+  }
+}
+
+.ot-break-sim-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent-subtle-border);
+  color: var(--accent-primary);
+  letter-spacing: 0.2px;
+}
+
+.ot-break-segmented {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  background: var(--input-bg);
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--card-border);
+}
+
+.ot-break-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 2px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  font-family: inherit;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+
+  &:hover {
+    color: var(--text-main);
+    background: var(--accent-subtle);
+  }
+
+  &.active {
+    background: var(--accent-primary);
+    color: #ffffff;
+    box-shadow: 0 2px 8px var(--accent-glow);
+  }
+}
+
+.ot-break-custom-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid var(--card-border);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.ot-break-custom-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ot-break-combined-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.ot-break-labels-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0 54px;
+}
+
+.ot-break-unit-label {
+  flex: 1;
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  line-height: 1;
+}
+
+.ot-break-combined-stepper {
+  display: inline-flex;
+  align-items: center;
+  background: var(--input-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  padding: 3px 4px;
+  gap: 1px;
+  height: 36px;
+  transition: border-color var(--transition), box-shadow var(--transition);
+
+  &:focus-within {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+}
+
+.ot-stepper-sep {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  user-select: none;
+  padding: 0 1px;
+}
+
+.ot-stepper-btn {
+  width: 50px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1.32rem;
+  font-weight: 700;
+  line-height: 1;
+  transition: all var(--transition);
+
+  &:hover:not(:disabled) {
+    background: var(--accent-subtle);
+    color: var(--accent-primary);
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+
+  &:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+  }
+}
+
+.ot-stepper-input {
+  width: 22px;
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  font-size: 0.95rem !important;
+  font-weight: 700;
+  color: var(--text-main) !important;
+  text-align: center;
+  outline: none !important;
+  box-shadow: none !important;
+
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  -moz-appearance: textfield;
+}
+
+.ot-milestone-time-val {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.ot-milestone-adjusted-tag {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--accent-primary);
 }
 
 .ot-milestones-list {
@@ -1282,6 +1563,13 @@
   padding-bottom: 14px;
   margin-bottom: 4px;
   border-bottom: 1px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition);
+  cursor: help;
+
+  &:hover {
+    background: var(--slate-bg);
+  }
 }
 
 .ot-milestone-work-complete .ot-milestone-dot {
