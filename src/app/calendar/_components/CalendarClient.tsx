@@ -323,7 +323,8 @@ export default function CalendarClient({
             fetchedEvents = data;
           } else {
             fetchedEvents = data.events || [];
-            if (Array.isArray(data.notes)) {
+            // Only update notes when viewing own calendar (not admin view of another user)
+            if (!adminUserId && Array.isArray(data.notes)) {
               fetchedNotes = data.notes;
               setNotes(fetchedNotes);
             }

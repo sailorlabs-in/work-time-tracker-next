@@ -536,7 +536,8 @@ export default function DayDetailModal({
 
 
 
-        {/* Day Notes Section */}
+        {/* Day Notes Section — hidden in admin view */}
+        {!adminUserId && (
         <div className="day-modal-notes-section">
           <div className="dm-notes-header">
             <span className="dm-notes-title">
@@ -589,6 +590,7 @@ export default function DayDetailModal({
             </p>
           )}
         </div>
+        )}
 
         {/* Sessions Content: Editing Mode or Timeline View */}
         {isEditingSessions ? (
